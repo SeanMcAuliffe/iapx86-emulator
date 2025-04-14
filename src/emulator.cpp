@@ -24,6 +24,13 @@ using i64 = int64_t;
 #define U8(x) static_cast<u8>(x)
 #define INT(x) static_cast<int>(x)
 
+
+struct Instruction {
+  unsigned char high {};
+  unsigned char low {};
+};
+
+
 /*
  * See 8086 user manual Table 409: REG (Register) Field Encoding,
  * using the W bit at the most significant bit.
@@ -47,6 +54,7 @@ constexpr std::array<std::pair<u8, const char*>, 16> REGISTER_ENCODING {{
   {U8(0b1111), "di"}
 }};
 
+
 const std::unordered_map<u8, std::string>& getRegisterNameMap() {
   static const std::unordered_map<u8, std::string> register_names(
       REGISTER_ENCODING.begin(), REGISTER_ENCODING.end()
@@ -54,7 +62,8 @@ const std::unordered_map<u8, std::string>& getRegisterNameMap() {
   return register_names;
 }
 
-std::vector<u8> read_binary_file(const std::string& filename) {
+
+void read_binary_file(const std::string& filename, std::vector<u8> &program_buffer) {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file) {
       std::cerr << "Could not open file: " << filename << "\n";
@@ -65,16 +74,11 @@ std::vector<u8> read_binary_file(const std::string& filename) {
       std::cerr << "Ill-formed program: odd number of bytes\n";
       std::abort();
     }
-    std::vector<u8> buffer(size);
+    program_buffer.resize(size);
     file.seekg(0, std::ios::beg);
-    file.read(reinterpret_cast<char*>(buffer.data()), size);
-    return buffer;
+    file.read(reinterpret_cast<char*>(program_buffer.data()), program_buffer.size());
 }
 
-struct Instruction {
-  unsigned char high {};
-  unsigned char low {};
-};
 
 std::string instruction_mnemonic(const Instruction &instruction) {
   /* Switch on the highest 6 bits
@@ -94,12 +98,13 @@ std::string instruction_mnemonic(const Instruction &instruction) {
   }
 }
 
+
 std::string identify_mov_registers(const Instruction &instruction) {
   auto register_names = getRegisterNameMap();
 
   bool direction = instruction.high & 0b10;
   bool wide = instruction.high & 0b01;
-  u8 mod = (instruction.low & 0b11000000) >> 6;
+  // u8 mod = (instruction.low & 0b11000000) >> 6;
   u8 reg = (instruction.low & 0b00111000) >> 3;
   u8 rm = instruction.low & 0b00000111;
 
@@ -120,12 +125,12 @@ std::string identify_mov_registers(const Instruction &instruction) {
 
   if (source_it == not_found || destination_it == not_found) {
     std::cout << "Ill-formed program; bad register encoding\n";
-    exit(EXIT_FAILURE);
+    std::exit(EXIT_FAILURE);
   }
 
   return std::format("{}, {}", (*source_it).second, (*destination_it).second);
-
 }
+
 
 /* Produces a string representation of the original ASM text which
  * produced the provided binary encoded instruction.
@@ -137,21 +142,24 @@ std::string disassemble_instruction(const Instruction &instruction) {
   return output.str();
 }
 
+
 int main(int argc, char **argv) {
   if (argc < 2) {
-    return 0;
+    std::cerr << "Must specify program file as first positional argument\n";
+    return EXIT_FAILURE;
   }
 
   char* program_filename = argv[1];
   if (!std::filesystem::exists(program_filename)) {
-    std::cerr << "Could not find assembly file\n";
-    std::abort();
+    std::cerr << "Could not find program file\n";
+    return EXIT_FAILURE;
   }
 
   std::ifstream program_file(program_filename);
-  std::vector<u8> program_data = read_binary_file(program_filename);
-  std::vector<Instruction> program {};
+  std::vector<u8> program_data {};
+  read_binary_file(program_filename, program_data);
 
+  std::vector<Instruction> program {};
   for (unsigned int i = 0; i < program_data.size(); i += 2) {
     program.push_back({.high = program_data[i], .low = program_data[i + 1]});
   }
