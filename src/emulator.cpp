@@ -280,7 +280,7 @@ std::string disassemble(std::string name, Operation op, std::vector<u8> &instruc
             u8 key_reg  = reg + (wide << 3);
             iterator reg_it = register_names.find(key_reg);
             iterator rm_it = rm_values.find(rm);
-            instr_str = std::format("{}, [{}]\n", (*reg_it).second, (*rm_it).second);
+            instr_str = std::format("{} {}, [{}]\n", name, (*reg_it).second, (*rm_it).second);
           }
         } else if (mod == 0b11) {
             /* Register to Register */
@@ -334,7 +334,9 @@ int main(int argc, char **argv) {
 
   char* program_filename = argv[1];
   if (!std::filesystem::exists(program_filename)) {
-    std::cerr << std::format("{}: Could not find program file\n", __LINE__);
+    std::cerr << std::format(
+	  "{}: Could not find program file: {}\n", __LINE__, program_filename
+	);
     return EXIT_FAILURE;
   }
 
