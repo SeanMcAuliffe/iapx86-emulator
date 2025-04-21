@@ -23,17 +23,103 @@ using i64 = int64_t;
 
 #define U8(x) static_cast<u8>(x)
 #define INT(x) static_cast<int>(x)
+#define SIZE(x) static_cast<size_t>(x)
+
+
+template <class E>
+constexpr auto to_underlying(E e) {
+  return static_cast<std::underlying_type_t<E>>(e);
+}
+
+
+/*
+ * Represents an operation, which, once known, tells us how many more bytes
+ * to fetch as part of this instruction, and how to decode them. See Table
+ * 4-12 "8086 Instruction Encoding".
+ */
+enum class Operation {
+  REGMEM_TO_FROM_REG,
+  IMM_TO_REGMEM,
+  IMM_TO_REG,
+  MEM_TO_ACC,
+  ACC_TO_MEM,
+  COUNT 
+};
+
+
+struct Opcode {
+  Operation operation;
+  u8 bits;
+  u8 length;
+};
 
 
 struct Instruction {
-  unsigned char high {};
-  unsigned char low {};
+
 };
+
+
+constexpr std::array<Opcode, SIZE(Operation::COUNT)> opcodes {{
+  {Operation::REGMEM_TO_FROM_REG, 0b100010, 6},
+  {Operation::IMM_TO_REGMEM, 0b1100011, 7},
+  {Operation::IMM_TO_REG, 0b1011, 4},
+  {Operation::MEM_TO_ACC, 0b1010000, 7},
+  {Operation::ACC_TO_MEM, 0b1010001, 7}
+}};
+
+
+std::string to_string(Operation operation) {
+  switch (operation) {
+    case Operation::REGMEM_TO_FROM_REG: return "To Register/Memory to/from Register";
+    case Operation::IMM_TO_REGMEM: return "Immediate to Register/Memory";
+    case Operation::IMM_TO_REG: return "Immediate to Register";
+    case Operation::MEM_TO_ACC: return "Memory to Accumulator";
+    case Operation::ACC_TO_MEM: return "Accumulator to Memory";
+    default: return "Unknown Operation";
+  }
+}
+
+
+std::string get_opcode_name(Operation operation) {
+  using O = Operation;
+  switch (operation) {
+    case O::REGMEM_TO_FROM_REG:
+    case O::IMM_TO_REGMEM:
+    case O::IMM_TO_REG:
+    case O::MEM_TO_ACC:
+    case O::ACC_TO_MEM:
+      return "mov";
+    default:
+      std::cerr << std::format(
+        "{}: Unrecognized opcode: {}\n", __LINE__, to_underlying(operation)
+      );
+      std::abort();
+  }
+}
+
+
+Operation match_opcode(u8 byte) {
+  for (const Opcode& o : opcodes) {
+    u8 shift = 8 - o.length;
+    u8 mask = 0xFF << shift;
+    u8 prefix = (byte & mask) >> shift;
+    if (prefix == o.bits) {
+      return o.operation;
+    }
+  }
+  std::cerr << std::format(
+    "{}: Could not match instruction {} to opcode\n", __LINE__, (int)byte
+  );
+  std::abort();
+}
 
 
 /*
  * See 8086 user manual Table 409: REG (Register) Field Encoding,
  * using the W bit at the most significant bit.
+ * 
+ * Constant data used to construct a Meyer's Singleton unordered map
+ * in get_register_name_map().
  */
 constexpr std::array<std::pair<u8, const char*>, 16> REGISTER_ENCODING {{
   {U8(0b0000), "al"},
@@ -55,103 +141,200 @@ constexpr std::array<std::pair<u8, const char*>, 16> REGISTER_ENCODING {{
 }};
 
 
-const std::unordered_map<u8, std::string>& getRegisterNameMap() {
+const std::unordered_map<u8, std::string>& get_register_name_map() {
   static const std::unordered_map<u8, std::string> register_names(
       REGISTER_ENCODING.begin(), REGISTER_ENCODING.end()
   );
   return register_names;
 }
 
+constexpr std::array<std::pair<u8, const char*>, 8> RM_ENCODING{{
+  {U8(0b000), "bx + si"},
+  {U8(0b001), "bx + di"},
+  {U8(0b010), "bp + si"},
+  {U8(0b011), "bp + di"},
+  {U8(0b100), "si"},
+  {U8(0b101), "di"},
+  {U8(0b110), "bp"},
+  {U8(0b111), "bx"}
+}};
+
+
+const std::unordered_map<u8, std::string>& get_rm_map() {
+  static const std::unordered_map<u8, std::string> rm_values(
+      RM_ENCODING.begin(), RM_ENCODING.end()
+  );
+  return rm_values;
+}
+
 
 void read_binary_file(const std::string& filename, std::vector<u8> &program_buffer) {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file) {
-      std::cerr << "Could not open file: " << filename << "\n";
+      std::cerr << std::format("{}: Could not open file: {}\n", __LINE__, filename);
       std::abort();
     }
     std::streamsize size = file.tellg();
-    if (size % 2 != 0) {
-      std::cerr << "Ill-formed program: odd number of bytes\n";
-      std::abort();
-    }
     program_buffer.resize(size);
     file.seekg(0, std::ios::beg);
     file.read(reinterpret_cast<char*>(program_buffer.data()), program_buffer.size());
 }
 
 
-std::string instruction_mnemonic(const Instruction &instruction) {
-  /* Switch on the highest 6 bits
-   * From the 8086 user manual:
-   *
-   * "The first six bits of a multibyte instruction generally contain an opcode
-   * that identifies the basic instruction type: ADD, XOR, etc."
-   */
-  u8 high_six = (instruction.high & 0xfc) >> 2;
-  switch (high_six) {
-    case 0b100010:
-      return std::string("mov");
-      break;
+u8 additional_bytes(Operation op, bool &more) {
+  switch (op) {
+    case Operation::REGMEM_TO_FROM_REG:
+      more = true;
+      return 1;
+    case Operation::IMM_TO_REGMEM:
+      more = true;
+      return 1;
+    case Operation::IMM_TO_REG:
+      more = false;
+      return 2;
+    case Operation::MEM_TO_ACC:
+      more = false;
+      return 2;
+    case Operation::ACC_TO_MEM:
+      more = false;
+      return 2;
     default:
-      std::cerr << "Unknown command: " << INT(high_six) << "\n";
+      std::cerr << std::format("{} Unhandled case\n", __LINE__);
       std::abort();
   }
 }
 
 
-std::string identify_mov_registers(const Instruction &instruction) {
-  auto register_names = getRegisterNameMap();
-
-  bool direction = instruction.high & 0b10;
-  bool wide = instruction.high & 0b01;
-  // u8 mod = (instruction.low & 0b11000000) >> 6;
-  u8 reg = (instruction.low & 0b00111000) >> 3;
-  u8 rm = instruction.low & 0b00000111;
-
-  rm = rm + (wide << 3);
-  reg = reg + (wide << 3);
-  auto not_found = register_names.end();
-
-  std::unordered_map<u8, std::string>::const_iterator source_it {};
-  std::unordered_map<u8, std::string>::const_iterator destination_it {};
-
-  if (direction) {
-    source_it = register_names.find(rm);
-    destination_it = register_names.find(reg);
-  } else {
-    destination_it = register_names.find(reg);
-    source_it = register_names.find(rm);
+u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
+  u8 high = instruction[0];
+  u8 low = instruction[1];
+  bool wide = high & 0b01;
+  u8 mod = (low & 0b11000000) >> 6;
+  u8 rm = low & 0b00000111;
+  switch (op) {
+    case Operation::REGMEM_TO_FROM_REG:
+      if ((mod == 0b10) || (mod == 0b00 && rm == 0b110)) {
+        return 2;
+      } else if ((mod == 0b11) || (mod = 0b00 && rm != 0b110)) {
+        return 0;
+      } else if (mod == 0b01) {
+        return 1;
+      } else {
+        std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+        std::abort();
+      }
+      break;
+    case Operation::IMM_TO_REGMEM:
+      {
+        u8 data_bytes = wide ? 2 : 1;
+        if ((mod == 0b10) || (mod == 0b00 && rm == 0b110)) {
+          return 2 + data_bytes;
+        } else if ((mod == 0b11) || (mod = 0b00 && rm != 0b110)) {
+          return 0 + data_bytes;
+        } else if (mod == 0b01) {
+          return 1 + data_bytes;
+        } else {
+          std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+          std::abort();
+        }
+      }
+      break;
+    default:
+      std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+      std::abort();
   }
-
-  if (source_it == not_found || destination_it == not_found) {
-    std::cout << "Ill-formed program; bad register encoding\n";
-    std::exit(EXIT_FAILURE);
-  }
-
-  return std::format("{}, {}", (*source_it).second, (*destination_it).second);
 }
 
 
-/* Produces a string representation of the original ASM text which
- * produced the provided binary encoded instruction.
- */
-std::string disassemble_instruction(const Instruction &instruction) {
-  std::ostringstream output {};
-  output << instruction_mnemonic(instruction) << " ";
-  output << identify_mov_registers(instruction);
-  return output.str();
+std::string disassemble(std::string name, Operation op, std::vector<u8> &instruction) {
+  using iterator = std::unordered_map<u8, std::string>::const_iterator;
+  std::string instr_str{"unk\n"};
+
+  switch (op) {
+
+    case Operation::REGMEM_TO_FROM_REG:
+      {
+        u8 high = instruction[0];
+        u8 low = instruction[1];
+        bool wide = high & 0b01;
+        bool direction = (high & 0b10) >> 1;
+        u8 mod = (low & 0b11000000) >> 6;
+        u8 reg = (low & 0b00111000) >> 3;
+        u8 rm = low & 0b00000111;
+
+        if (mod == 0b10) {
+          /* Effective address calculation w/ 16-bit displacement */
+          u8 disp_high = instruction[3];
+          u8 disp_low = instruction[2];
+        } else if (mod == 0b01) {
+          /* Effective address calculation w/ 8-bit displacement */
+          u8 disp = instruction[2];
+        } else if (mod == 0b00) {
+          if (rm == 0b110) {
+            /* Direct address */
+          } else {
+            /* No displacement */
+            auto register_names = get_register_name_map();
+            auto rm_values = get_rm_map();
+            auto not_found = register_names.end();
+            u8 key_reg  = reg + (wide << 3);
+            iterator reg_it = register_names.find(key_reg);
+            iterator rm_it = rm_values.find(rm);
+            instr_str = std::format("{}, [{}]\n", (*reg_it).second, (*rm_it).second);
+          }
+        } else if (mod == 0b11) {
+            /* Register to Register */
+            u8 key_rm = rm + (wide << 3);
+            u8 key_reg  = reg + (wide << 3);
+            auto register_names = get_register_name_map();
+            auto not_found = register_names.end();
+            iterator source_it {};
+            iterator destination_it {};
+            if (direction) {
+              source_it = register_names.find(key_rm);
+              destination_it = register_names.find(key_reg);
+            } else {
+              destination_it = register_names.find(key_reg);
+              source_it = register_names.find(key_rm);
+            }
+            if (source_it == not_found || destination_it == not_found) {
+              std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
+              std::abort();
+            }
+            instr_str = std::format(
+              "{} {}, {}\n", name, (*source_it).second, (*destination_it).second
+            );
+        }
+      }
+      return instr_str;
+      break;
+
+    case Operation::IMM_TO_REGMEM:
+      break;
+    case Operation::IMM_TO_REG:
+      break;
+    case Operation::MEM_TO_ACC:
+      break;
+    case Operation::ACC_TO_MEM:
+      break;
+    default:
+      std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+      std::abort();
+  }
 }
 
 
 int main(int argc, char **argv) {
   if (argc < 2) {
-    std::cerr << "Must specify program file as first positional argument\n";
+    std::cerr << std::format(
+      "{}: Must specify program file as first positional argument\n", __LINE__
+    );
     return EXIT_FAILURE;
   }
 
   char* program_filename = argv[1];
   if (!std::filesystem::exists(program_filename)) {
-    std::cerr << "Could not find program file\n";
+    std::cerr << std::format("{}: Could not find program file\n", __LINE__);
     return EXIT_FAILURE;
   }
 
@@ -159,14 +342,31 @@ int main(int argc, char **argv) {
   std::vector<u8> program_data {};
   read_binary_file(program_filename, program_data);
 
-  std::vector<Instruction> program {};
-  for (unsigned int i = 0; i < program_data.size(); i += 2) {
-    program.push_back({.high = program_data[i], .low = program_data[i + 1]});
-  }
+  u16 program_cursor = 0;
+  while (program_cursor < program_data.size()) {
+    std::vector<u8> instruction {program_data[program_cursor]};
 
-  for (auto instruction : program) {
-    std::cout << disassemble_instruction(instruction) << "\n";
-  }
+    Operation operation = match_opcode(program_data[program_cursor]);
+    std::string name = get_opcode_name(operation);
+    program_cursor += 1;
 
+    bool more = false;
+    u8 additional_num = additional_bytes(operation, more);
+    for (unsigned int i = 0; i < additional_num; i++) {
+      instruction.push_back(program_data[program_cursor + i]);
+    }
+    program_cursor += additional_num;
+
+    if (more) {
+      additional_num = additional_bytes(operation, instruction);
+      for (unsigned int i = 0; i < additional_num; i++) {
+        instruction.push_back(program_data[program_cursor + i]);
+      }
+      program_cursor += additional_num;
+    }
+
+    std::cout << disassemble(name, operation, instruction);
+  }
+  
   return 0;
 }
