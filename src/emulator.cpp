@@ -93,7 +93,7 @@ std::string get_opcode_name(Operation operation) {
       std::cerr << std::format(
         "{}: Unrecognized opcode: {}\n", __LINE__, to_underlying(operation)
       );
-      std::abort();
+      std::exit(EXIT_FAILURE);
   }
 }
 
@@ -110,7 +110,7 @@ Operation match_opcode(u8 byte) {
   std::cerr << std::format(
     "{}: Could not match instruction {} to opcode\n", __LINE__, (int)byte
   );
-  std::abort();
+  std::exit(EXIT_FAILURE);
 }
 
 
@@ -172,7 +172,7 @@ void read_binary_file(const std::string& filename, std::vector<u8> &program_buff
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file) {
       std::cerr << std::format("{}: Could not open file: {}\n", __LINE__, filename);
-      std::abort();
+      std::exit(EXIT_FAILURE);
     }
     std::streamsize size = file.tellg();
     program_buffer.resize(size);
@@ -181,7 +181,7 @@ void read_binary_file(const std::string& filename, std::vector<u8> &program_buff
 }
 
 
-u8 additional_bytes(Operation op, bool &more) {
+u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
   switch (op) {
     case Operation::REGMEM_TO_FROM_REG:
       more = true;
@@ -190,8 +190,11 @@ u8 additional_bytes(Operation op, bool &more) {
       more = true;
       return 1;
     case Operation::IMM_TO_REG:
-      more = false;
-      return 2;
+	  {
+	    bool wide = (instruction[0] & 0b1000) >> 3;
+        more = false;
+        return wide ? 2 : 1;
+	  }
     case Operation::MEM_TO_ACC:
       more = false;
       return 2;
@@ -200,7 +203,7 @@ u8 additional_bytes(Operation op, bool &more) {
       return 2;
     default:
       std::cerr << std::format("{} Unhandled case\n", __LINE__);
-      std::abort();
+      std::exit(EXIT_FAILURE);
   }
 }
 
@@ -220,8 +223,8 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
       } else if (mod == 0b01) {
         return 1;
       } else {
-        std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-        std::abort();
+        std::cerr << std::format("{}: Unhandled case, mod = {}, rm = {}\n", __LINE__, mod, rm);
+        std::exit(EXIT_FAILURE);
       }
       break;
     case Operation::IMM_TO_REGMEM:
@@ -235,13 +238,13 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
           return 1 + data_bytes;
         } else {
           std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-          std::abort();
+          std::exit(EXIT_FAILURE);
         }
       }
       break;
     default:
       std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-      std::abort();
+      std::exit(EXIT_FAILURE);
   }
 }
 
@@ -276,11 +279,18 @@ std::string disassemble(std::string name, Operation op, std::vector<u8> &instruc
             /* No displacement */
             auto register_names = get_register_name_map();
             auto rm_values = get_rm_map();
-            auto not_found = register_names.end();
             u8 key_reg  = reg + (wide << 3);
             iterator reg_it = register_names.find(key_reg);
             iterator rm_it = rm_values.find(rm);
-            instr_str = std::format("{} {}, [{}]\n", name, (*reg_it).second, (*rm_it).second);
+			if (reg_it == register_names.end() || rm_it == rm_values.end()) {
+              std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
+              std::exit(EXIT_FAILURE);
+            }
+			if (direction) {
+				instr_str = std::format("{} [{}], {}\n", name, (*rm_it).second, (*reg_it).second);
+			} else {
+				instr_str = std::format("{} {}, [{}]\n", name, (*reg_it).second, (*rm_it).second);
+			}
           }
         } else if (mod == 0b11) {
             /* Register to Register */
@@ -299,19 +309,36 @@ std::string disassemble(std::string name, Operation op, std::vector<u8> &instruc
             }
             if (source_it == not_found || destination_it == not_found) {
               std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
-              std::abort();
+              std::exit(EXIT_FAILURE);
             }
             instr_str = std::format(
               "{} {}, {}\n", name, (*source_it).second, (*destination_it).second
             );
         }
       }
-      return instr_str;
       break;
 
     case Operation::IMM_TO_REGMEM:
       break;
     case Operation::IMM_TO_REG:
+	  {
+		bool wide = (instruction[0] & 0b1000) >> 3;
+		u8 reg = instruction[0] & 0b111;
+	    u8 key_reg = reg + (wide << 3);
+	    auto register_names = get_register_name_map();
+	    iterator reg_it = register_names.find(key_reg);
+	    if (reg_it == register_names.end()) {
+	      std::cerr << std::format("{}: Bad register encoding: {}\n", __LINE__, (int)key_reg);
+	      std::exit(EXIT_FAILURE);
+	    }
+	    if (wide) {
+	        u16 data = instruction[1] + (instruction[2] << 8);
+	        instr_str = std::format("{} {}, {}\n", name, reg_it->second, data);
+	    } else {
+	        u8 data = instruction[1];
+	        instr_str = std::format("{}, {}, {}\n", name, reg_it->second, data);
+	    }
+	  }
       break;
     case Operation::MEM_TO_ACC:
       break;
@@ -319,8 +346,9 @@ std::string disassemble(std::string name, Operation op, std::vector<u8> &instruc
       break;
     default:
       std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-      std::abort();
+      std::exit(EXIT_FAILURE);
   }
+  return instr_str;
 }
 
 
@@ -353,7 +381,7 @@ int main(int argc, char **argv) {
     program_cursor += 1;
 
     bool more = false;
-    u8 additional_num = additional_bytes(operation, more);
+    u8 additional_num = additional_bytes(operation, instruction, more);
     for (unsigned int i = 0; i < additional_num; i++) {
       instruction.push_back(program_data[program_cursor + i]);
     }
