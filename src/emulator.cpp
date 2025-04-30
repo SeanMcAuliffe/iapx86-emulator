@@ -1,15 +1,13 @@
-#include <bitset>
 #include <cstdlib>
+#include "stdio.h"
 #include <iostream>
 #include <format>
 #include <filesystem>
 #include <fstream>
-#include <strstream>
 #include <vector>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
-#include <sstream>
 #include <array>
 
 using u8 = uint8_t;
@@ -190,11 +188,11 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
       more = true;
       return 1;
     case Operation::IMM_TO_REG:
-	  {
-	    bool wide = (instruction[0] & 0b1000) >> 3;
+		{
+			bool wide = (instruction[0] & 0b1000) >> 3;
         more = false;
         return wide ? 2 : 1;
-	  }
+		}
     case Operation::MEM_TO_ACC:
       more = false;
       return 2;
@@ -216,16 +214,26 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
   u8 rm = low & 0b00000111;
   switch (op) {
     case Operation::REGMEM_TO_FROM_REG:
-      if ((mod == 0b10) || (mod == 0b00 && rm == 0b110)) {
-        return 2;
-      } else if ((mod == 0b11) || (mod = 0b00 && rm != 0b110)) {
-        return 0;
-      } else if (mod == 0b01) {
-        return 1;
-      } else {
-        std::cerr << std::format("{}: Unhandled case, mod = {}, rm = {}\n", __LINE__, mod, rm);
-        std::exit(EXIT_FAILURE);
-      }
+			if (mod == 0b01) {
+				return 1;
+			}
+			if (mod == 0b10) {
+				return 2;
+			}
+			if (mod == 0b11) {
+				return 0;
+			}
+			if (mod == 0b00) {
+				if (rm == 0b110) {
+					return 2;
+				} else {
+					return 0;
+				}
+			}
+			std::cerr << std::format(
+				"{}: Unhandled case, mod = {}, rm = {}\n", __LINE__, mod, rm
+			);
+      std::exit(EXIT_FAILURE);
       break;
     case Operation::IMM_TO_REGMEM:
       {
@@ -249,106 +257,162 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
 }
 
 
-std::string disassemble(std::string name, Operation op, std::vector<u8> &instruction) {
+std::string disassemble_regmem_to_from_reg(std::string name, std::vector<u8>& instruction) {
   using iterator = std::unordered_map<u8, std::string>::const_iterator;
-  std::string instr_str{"unk\n"};
+
+	u8 high = instruction[0];
+	u8 low = instruction[1];
+	bool wide = high & 0b01;
+	bool direction = (high & 0b10) >> 1;
+	u8 mod = (low & 0b11000000) >> 6;
+	u8 reg = (low & 0b00111000) >> 3;
+	u8 rm = low & 0b00000111;
+
+	auto register_names = get_register_name_map();
+	auto rm_values = get_rm_map();
+
+  /* Effective address calculation w/ 16-bit displacement */
+  if (mod == 0b10) {
+		u8 disp_high = instruction[3];
+    u8 disp_low = instruction[2];
+		u16 disp = (disp_high << 8) + disp_low;
+		u8 key_reg = reg + (wide << 3);
+		iterator reg_it = register_names.find(key_reg);
+		iterator rm_it = rm_values.find(rm);
+		if (direction) {
+			return std::format(
+				"{} {}, [{} + {}]\n",
+				name, (*reg_it).second, (*rm_it).second, (int)disp);
+		} else {
+			return std::format(
+				"{} [{} + {}], {}\n",
+				name, (*rm_it).second, (int)disp, (*reg_it).second);
+		}
+
+	} else if (mod == 0b01) {
+		/* Effective address calculation w/ 8-bit displacement */
+		u8 disp = instruction[2];
+		u8 key_reg = reg + (wide << 3);
+		iterator reg_it = register_names.find(key_reg);
+		iterator rm_it = rm_values.find(rm);
+		if (direction) {
+			return std::format(
+				"{} {}, [{} + {}]\n",
+				name, (*reg_it).second, (*rm_it).second, (int)disp);
+		} else {
+			return std::format(
+				"{} [{} + {}], {}\n",
+				name, (*rm_it).second, (int)disp, (*reg_it).second);
+		}
+	} else if (mod == 0b00) {
+		if (rm == 0b110) {
+			/* Direct address: 16-bit displacement follows */
+			u8 key_reg = reg + (wide << 3);
+			iterator reg_it = register_names.find(key_reg);
+			std::string rm_reg {"bp"};
+			if (direction) {
+				return std::format("{} {}, [{}]\n", name, (*reg_it).second, rm_reg);
+			} else {
+				return std::format("{} [{}], {}\n", name, rm_reg, (*reg_it).second);
+			}
+		} else {
+			/* No displacement */
+			u8 key_reg  = reg + (wide << 3);
+			iterator reg_it = register_names.find(key_reg);
+			iterator rm_it = rm_values.find(rm);
+			if (reg_it == register_names.end() || rm_it == rm_values.end()) {
+				std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
+				std::exit(EXIT_FAILURE);
+			}
+			if (direction) {
+				return std::format(
+					"{} {}, [{}]\n",
+					name, (*reg_it).second, (*rm_it).second);
+			} else {
+				return std::format(
+					"{} [{}], {}\n",
+					name, (*rm_it).second, (*reg_it).second);
+			}
+		}
+	} else if (mod == 0b11) {
+		/* Register to Register */
+		u8 key_rm = rm + (wide << 3);
+		u8 key_reg  = reg + (wide << 3);
+		iterator source_it {};
+		iterator destination_it {};
+		if (direction) {
+			source_it = register_names.find(key_rm);
+			destination_it = register_names.find(key_reg);
+		} else {
+			destination_it = register_names.find(key_reg);
+			source_it = register_names.find(key_rm);
+		}
+		if (source_it == register_names.end() || destination_it == register_names.end()) {
+			std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
+			std::exit(EXIT_FAILURE);
+		}
+		return std::format(
+			"{} {}, {}\n", name, (*source_it).second, (*destination_it).second
+		);
+	}
+	return std::format("Unknown: regmem_to_from_reg, mod = {}, rm = {}\n", mod, rm);
+}
+
+
+std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruction) {
+	return "Unknown: imm to regmem\n";
+}
+
+
+std::string disassemble_imm_to_reg(std::string name, std::vector<u8>& instruction) {
+  using iterator = std::unordered_map<u8, std::string>::const_iterator;
+	bool wide = (instruction[0] & 0b1000) >> 3;
+	u8 reg = instruction[0] & 0b111;
+	u8 key_reg = reg + (wide << 3);
+	auto register_names = get_register_name_map();
+	iterator reg_it = register_names.find(key_reg);
+	if (reg_it == register_names.end()) {
+		std::cerr << std::format("{}: Bad register encoding: {}\n", __LINE__, (int)key_reg);
+		std::exit(EXIT_FAILURE);
+	}
+	if (wide) {
+		u16 data = instruction[1] + (instruction[2] << 8);
+		return std::format("{} {}, {}\n", name, reg_it->second, data);
+	} else {
+		u8 data = instruction[1];
+		return std::format("{}, {}, {}\n", name, reg_it->second, data);
+	}
+}
+
+
+std::string disassemble_mem_to_acc(std::string name, std::vector<u8>& instruction) {
+	return "Unknown: mem to acc\n";
+}
+
+
+std::string disassemble_acc_to_mem(std::string name, std::vector<u8>& instruction) {
+	return "Unknown: acc to mem\n";
+}
+
+
+std::string disassemble(std::string name, Operation op, std::vector<u8> &instruction) {
 
   switch (op) {
-
     case Operation::REGMEM_TO_FROM_REG:
-      {
-        u8 high = instruction[0];
-        u8 low = instruction[1];
-        bool wide = high & 0b01;
-        bool direction = (high & 0b10) >> 1;
-        u8 mod = (low & 0b11000000) >> 6;
-        u8 reg = (low & 0b00111000) >> 3;
-        u8 rm = low & 0b00000111;
-
-        if (mod == 0b10) {
-          /* Effective address calculation w/ 16-bit displacement */
-          u8 disp_high = instruction[3];
-          u8 disp_low = instruction[2];
-        } else if (mod == 0b01) {
-          /* Effective address calculation w/ 8-bit displacement */
-          u8 disp = instruction[2];
-        } else if (mod == 0b00) {
-          if (rm == 0b110) {
-            /* Direct address */
-          } else {
-            /* No displacement */
-            auto register_names = get_register_name_map();
-            auto rm_values = get_rm_map();
-            u8 key_reg  = reg + (wide << 3);
-            iterator reg_it = register_names.find(key_reg);
-            iterator rm_it = rm_values.find(rm);
-			if (reg_it == register_names.end() || rm_it == rm_values.end()) {
-              std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
-              std::exit(EXIT_FAILURE);
-            }
-			if (direction) {
-				instr_str = std::format("{} [{}], {}\n", name, (*rm_it).second, (*reg_it).second);
-			} else {
-				instr_str = std::format("{} {}, [{}]\n", name, (*reg_it).second, (*rm_it).second);
-			}
-          }
-        } else if (mod == 0b11) {
-            /* Register to Register */
-            u8 key_rm = rm + (wide << 3);
-            u8 key_reg  = reg + (wide << 3);
-            auto register_names = get_register_name_map();
-            auto not_found = register_names.end();
-            iterator source_it {};
-            iterator destination_it {};
-            if (direction) {
-              source_it = register_names.find(key_rm);
-              destination_it = register_names.find(key_reg);
-            } else {
-              destination_it = register_names.find(key_reg);
-              source_it = register_names.find(key_rm);
-            }
-            if (source_it == not_found || destination_it == not_found) {
-              std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
-              std::exit(EXIT_FAILURE);
-            }
-            instr_str = std::format(
-              "{} {}, {}\n", name, (*source_it).second, (*destination_it).second
-            );
-        }
-      }
-      break;
-
+			return disassemble_regmem_to_from_reg(name, instruction);
     case Operation::IMM_TO_REGMEM:
-      break;
+			return disassemble_imm_to_regmem(name, instruction);
     case Operation::IMM_TO_REG:
-	  {
-		bool wide = (instruction[0] & 0b1000) >> 3;
-		u8 reg = instruction[0] & 0b111;
-	    u8 key_reg = reg + (wide << 3);
-	    auto register_names = get_register_name_map();
-	    iterator reg_it = register_names.find(key_reg);
-	    if (reg_it == register_names.end()) {
-	      std::cerr << std::format("{}: Bad register encoding: {}\n", __LINE__, (int)key_reg);
-	      std::exit(EXIT_FAILURE);
-	    }
-	    if (wide) {
-	        u16 data = instruction[1] + (instruction[2] << 8);
-	        instr_str = std::format("{} {}, {}\n", name, reg_it->second, data);
-	    } else {
-	        u8 data = instruction[1];
-	        instr_str = std::format("{}, {}, {}\n", name, reg_it->second, data);
-	    }
-	  }
-      break;
+			return disassemble_imm_to_reg(name, instruction);
     case Operation::MEM_TO_ACC:
-      break;
+			return disassemble_mem_to_acc(name, instruction);
     case Operation::ACC_TO_MEM:
-      break;
+			return disassemble_acc_to_mem(name, instruction);
     default:
       std::cerr << std::format("{}: Unhandled case\n", __LINE__);
       std::exit(EXIT_FAILURE);
   }
-  return instr_str;
+	return "unk\n";
 }
 
 
@@ -363,7 +427,7 @@ int main(int argc, char **argv) {
   char* program_filename = argv[1];
   if (!std::filesystem::exists(program_filename)) {
     std::cerr << std::format(
-	  "{}: Could not find program file: {}\n", __LINE__, program_filename
+		"{}: Could not find program file: {}\n", __LINE__, program_filename
 	);
     return EXIT_FAILURE;
   }
