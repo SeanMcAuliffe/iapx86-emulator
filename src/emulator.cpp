@@ -20,6 +20,9 @@ using i32 = int32_t;
 using i64 = int64_t;
 
 #define U8(x) static_cast<u8>(x)
+#define I8(x) static_cast<i8>(x)
+#define U16(x) static_cast<u16>(x)
+#define I16(x) static_cast<i16>(x)
 #define INT(x) static_cast<int>(x)
 #define SIZE(x) static_cast<size_t>(x)
 
@@ -238,16 +241,24 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
     case Operation::IMM_TO_REGMEM:
       {
         u8 data_bytes = wide ? 2 : 1;
-        if ((mod == 0b10) || (mod == 0b00 && rm == 0b110)) {
-          return 2 + data_bytes;
-        } else if ((mod == 0b11) || (mod = 0b00 && rm != 0b110)) {
-          return 0 + data_bytes;
-        } else if (mod == 0b01) {
-          return 1 + data_bytes;
-        } else {
-          std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-          std::exit(EXIT_FAILURE);
-        }
+				if (mod == 0b01) {
+					return 1 + data_bytes;
+				}
+				if (mod == 0b10) {
+					return 2 + data_bytes;
+				}
+				if (mod == 0b11) {
+					return data_bytes;
+				}
+				if (mod == 0b00) {
+					if (rm == 0b110) {
+						return 2 + data_bytes;
+					} else {
+						return data_bytes;
+					}
+				}
+        std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+        std::exit(EXIT_FAILURE);
       }
       break;
     default:
@@ -273,32 +284,32 @@ std::string disassemble_regmem_to_from_reg(std::string name, std::vector<u8>& in
 
   /* Effective address calculation w/ 16-bit displacement */
   if (mod == 0b10) {
-		u8 disp_high = instruction[3];
-    u8 disp_low = instruction[2];
-		u16 disp = (disp_high << 8) + disp_low;
+		u8 disp_high = U8(instruction[3]);
+    u8 disp_low = U8(instruction[2]);
+		i16 disp = I16((disp_high << 8) + disp_low);
 		u8 key_reg = reg + (wide << 3);
 		iterator reg_it = register_names.find(key_reg);
 		iterator rm_it = rm_values.find(rm);
 		if (direction) {
 			return std::format(
-				"{} {}, [{} + {}]\n",
-				name, (*reg_it).second, (*rm_it).second, (int)disp);
+				"{} {}, [{} {} {}]\n",
+				name, (*reg_it).second, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp));
 		} else {
 			return std::format(
-				"{} [{} + {}], {}\n",
-				name, (*rm_it).second, (int)disp, (*reg_it).second);
+				"{} [{} {} {}], {}\n",
+				name, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp), (*reg_it).second);
 		}
 
 	} else if (mod == 0b01) {
 		/* Effective address calculation w/ 8-bit displacement */
-		u8 disp = instruction[2];
+		i8 disp = I8(instruction[2]);
 		u8 key_reg = reg + (wide << 3);
 		iterator reg_it = register_names.find(key_reg);
 		iterator rm_it = rm_values.find(rm);
 		if (direction) {
 			return std::format(
-				"{} {}, [{} + {}]\n",
-				name, (*reg_it).second, (*rm_it).second, (int)disp);
+				"{} {}, [{} {} {}]\n",
+				name, (*reg_it).second, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp));
 		} else {
 			return std::format(
 				"{} [{} + {}], {}\n",
@@ -308,12 +319,14 @@ std::string disassemble_regmem_to_from_reg(std::string name, std::vector<u8>& in
 		if (rm == 0b110) {
 			/* Direct address: 16-bit displacement follows */
 			u8 key_reg = reg + (wide << 3);
+			u8 disp_high = U8(instruction[3]);
+			u8 disp_low = U8(instruction[2]);
+			i16 disp = I16((disp_high << 8) + disp_low);
 			iterator reg_it = register_names.find(key_reg);
-			std::string rm_reg {"bp"};
 			if (direction) {
-				return std::format("{} {}, [{}]\n", name, (*reg_it).second, rm_reg);
+				return std::format("{} {} [{}{}]\n", name, (*reg_it).second, (disp < 0 ? "-" : ""), std::abs(disp));
 			} else {
-				return std::format("{} [{}], {}\n", name, rm_reg, (*reg_it).second);
+				return std::format("{} [{}{}], {}\n", name, (disp < 0 ? "-" : ""), std::abs(disp), (*reg_it).second);
 			}
 		} else {
 			/* No displacement */
@@ -360,7 +373,56 @@ std::string disassemble_regmem_to_from_reg(std::string name, std::vector<u8>& in
 
 
 std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruction) {
-	return "Unknown: imm to regmem\n";
+	bool wide = instruction[0] & 0b01;
+	u8 mod = (instruction[1] & 0b11000000) >> 6;
+	u8 rm = instruction[1] & 0b111;
+
+	auto rm_it = get_rm_map().find(rm);
+	std::string length = wide ? "word" : "byte";
+
+	switch(mod) {
+
+		case 0b00: {
+			i16 data {};
+			if (wide) {
+				data = I16(instruction[3] << 8) + instruction[2];
+			} else {
+				data = I16(instruction[2]);
+			}
+			if (rm == 0b110) {
+				i16 addr = I16((instruction[3] << 8) + instruction[2]);
+				return std::format("{} [{}], {} {}\n", name, addr, length, data);
+			} else {
+				return std::format("{} [{}], {} {}\n", name, rm_it->second, length, data);
+			}
+		}
+
+		case 0b01: {
+			i8 disp = I8(instruction[2]);
+			i16 data {};
+			if (wide) {
+				data = I16(instruction[4] << 8) + instruction[3];
+			} else {
+				data = I16(instruction[3]);
+			}
+			return std::format("{} [{} {} {}], {} {}\n",
+				name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
+		}
+
+		case 0b10: {
+			i16 disp = I16((instruction[3] << 8) + instruction[2]);
+			i16 data {};
+			if (wide) {
+				data = I16(instruction[5] << 8) + instruction[4];
+			} else {
+				data = I16(instruction[4]);
+			}
+			return std::format("{} [{} {} {}], {} {}\n",
+				name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
+		}
+
+	};
+	return std::format("{}: Unknown imm to regmem\n", __LINE__);
 }
 
 
@@ -376,22 +438,36 @@ std::string disassemble_imm_to_reg(std::string name, std::vector<u8>& instructio
 		std::exit(EXIT_FAILURE);
 	}
 	if (wide) {
-		u16 data = instruction[1] + (instruction[2] << 8);
+		i16 data = I16(instruction[1] + (instruction[2] << 8));
 		return std::format("{} {}, {}\n", name, reg_it->second, data);
 	} else {
-		u8 data = instruction[1];
+		i8 data = I8(instruction[1]);
 		return std::format("{}, {}, {}\n", name, reg_it->second, data);
 	}
 }
 
 
 std::string disassemble_mem_to_acc(std::string name, std::vector<u8>& instruction) {
-	return "Unknown: mem to acc\n";
+	bool wide = instruction[0] & 0b01;
+	if (wide) {
+		u16 addr = U16((instruction[2] << 8) + instruction[1]);
+		return std::format("{} ax, [{}]\n", name, addr);
+	} else {
+		u8 addr = U8(instruction[1]);
+		return std::format("{} al, [{}]\n", name, addr);
+	}
 }
 
 
 std::string disassemble_acc_to_mem(std::string name, std::vector<u8>& instruction) {
-	return "Unknown: acc to mem\n";
+	bool wide = instruction[0] & 0b01;
+	if (wide) {
+		u16 addr = U16((instruction[2] << 8) + instruction[1]);
+		return std::format("{} [{}], ax\n", name, addr);
+	} else {
+		u8 addr = U8(instruction[1]);
+		return std::format("{} [{}], al\n", name, addr);
+	}
 }
 
 
