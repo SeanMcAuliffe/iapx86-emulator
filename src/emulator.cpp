@@ -4,6 +4,7 @@
 #include <format>
 #include <filesystem>
 #include <fstream>
+#include <locale>
 #include <vector>
 #include <cstdint>
 #include <string>
@@ -27,6 +28,9 @@ using i64 = int64_t;
 #define SIZE(x) static_cast<size_t>(x)
 
 
+const std::string GENERIC_OP = "asc";
+
+
 template <class E>
 constexpr auto to_underlying(E e) {
   return static_cast<std::underlying_type_t<E>>(e);
@@ -44,6 +48,9 @@ enum class Operation {
   IMM_TO_REG,
   MEM_TO_ACC,
   ACC_TO_MEM,
+	ADD_REGMEM_WITH_REG,
+	ASC_IMM_TO_REGMEM,
+	ADD_IMM_TO_ACC,
   COUNT 
 };
 
@@ -55,17 +62,15 @@ struct Opcode {
 };
 
 
-struct Instruction {
-
-};
-
-
 constexpr std::array<Opcode, SIZE(Operation::COUNT)> opcodes {{
   {Operation::REGMEM_TO_FROM_REG, 0b100010, 6},
   {Operation::IMM_TO_REGMEM, 0b1100011, 7},
   {Operation::IMM_TO_REG, 0b1011, 4},
   {Operation::MEM_TO_ACC, 0b1010000, 7},
-  {Operation::ACC_TO_MEM, 0b1010001, 7}
+  {Operation::ACC_TO_MEM, 0b1010001, 7},
+  {Operation::ADD_REGMEM_WITH_REG, 0b0, 6},
+  {Operation::ASC_IMM_TO_REGMEM, 0b100000, 6},
+  {Operation::ADD_IMM_TO_ACC, 0b10, 7},
 }};
 
 
@@ -76,6 +81,9 @@ std::string to_string(Operation operation) {
     case Operation::IMM_TO_REG: return "Immediate to Register";
     case Operation::MEM_TO_ACC: return "Memory to Accumulator";
     case Operation::ACC_TO_MEM: return "Accumulator to Memory";
+    case Operation::ADD_REGMEM_WITH_REG: return "Add/Sub/Comp Register/Memory w/ Register to Either";
+    case Operation::ASC_IMM_TO_REGMEM: return "Add/Sub/Comp Immediate to Register/Memory";
+    case Operation::ADD_IMM_TO_ACC: return "Add/Sub/Comp Immediate to Accumulator";
     default: return "Unknown Operation";
   }
 }
@@ -90,6 +98,11 @@ std::string get_opcode_name(Operation operation) {
     case O::MEM_TO_ACC:
     case O::ACC_TO_MEM:
       return "mov";
+    case O::ADD_REGMEM_WITH_REG:
+    case O::ADD_IMM_TO_ACC:
+			return "add";
+    case O::ASC_IMM_TO_REGMEM:
+			return "asc";  // Not a real name, needs further decoding
     default:
       std::cerr << std::format(
         "{}: Unrecognized opcode: {}\n", __LINE__, to_underlying(operation)
@@ -149,6 +162,33 @@ const std::unordered_map<u8, std::string>& get_register_name_map() {
   return register_names;
 }
 
+
+std::string map_generic_to_name(Operation op, std::vector<u8>& instruction) {
+	static constexpr std::array<std::pair<u8, const char*>, 3> GENERIC_OP_NAMES {{
+		{U8(0b000), "add"},
+		{U8(0b101), "sub"},
+		{U8(0b111), "cmp"}
+	}};
+	static const std::unordered_map<u8, std::string> op_names(
+			GENERIC_OP_NAMES.begin(), GENERIC_OP_NAMES.end()
+	);
+	switch (op) {
+		case Operation::ASC_IMM_TO_REGMEM: {
+			u8 identifier = (instruction[1] & 0b111000) >> 3;
+			auto op_name = op_names.find(identifier);
+			if (op_name == op_names.end()) {
+				std::cerr << std::format("{}: could find find op name\n", __LINE__);
+				std::exit(EXIT_FAILURE);
+			}
+			return op_name->second;
+		}
+		default:
+			std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+			std::exit(EXIT_FAILURE);
+			break;
+	}
+}
+
 constexpr std::array<std::pair<u8, const char*>, 8> RM_ENCODING{{
   {U8(0b000), "bx + si"},
   {U8(0b001), "bx + di"},
@@ -185,16 +225,22 @@ void read_binary_file(const std::string& filename, std::vector<u8> &program_buff
 u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
   switch (op) {
     case Operation::REGMEM_TO_FROM_REG:
+		case Operation::ADD_REGMEM_WITH_REG:
       more = true;
       return 1;
+		case Operation::ASC_IMM_TO_REGMEM:
     case Operation::IMM_TO_REGMEM:
       more = true;
       return 1;
-    case Operation::IMM_TO_REG:
-		{
+    case Operation::IMM_TO_REG: {
 			bool wide = (instruction[0] & 0b1000) >> 3;
-        more = false;
-        return wide ? 2 : 1;
+      more = false;
+      return wide ? 2 : 1;
+		}
+		case Operation::ADD_IMM_TO_ACC: {
+			bool wide = instruction[0] & 0b01;
+      more = false;
+      return wide ? 2 : 1;
 		}
     case Operation::MEM_TO_ACC:
       more = false;
@@ -213,9 +259,11 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
   u8 high = instruction[0];
   u8 low = instruction[1];
   bool wide = high & 0b01;
+	bool sign_bit = (high & 0b10) >> 1;
   u8 mod = (low & 0b11000000) >> 6;
   u8 rm = low & 0b00000111;
   switch (op) {
+		case Operation::ADD_REGMEM_WITH_REG:
     case Operation::REGMEM_TO_FROM_REG:
 			if (mod == 0b01) {
 				return 1;
@@ -238,29 +286,50 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
 			);
       std::exit(EXIT_FAILURE);
       break;
-    case Operation::IMM_TO_REGMEM:
-      {
-        u8 data_bytes = wide ? 2 : 1;
-				if (mod == 0b01) {
-					return 1 + data_bytes;
-				}
-				if (mod == 0b10) {
+    case Operation::IMM_TO_REGMEM: {
+			u8 data_bytes = wide ? 2 : 1;
+			if (mod == 0b01) {
+				return 1 + data_bytes;
+			}
+			if (mod == 0b10) {
+				return 2 + data_bytes;
+			}
+			if (mod == 0b11) {
+				return data_bytes;
+			}
+			if (mod == 0b00) {
+				if (rm == 0b110) {
 					return 2 + data_bytes;
-				}
-				if (mod == 0b11) {
+				} else {
 					return data_bytes;
 				}
-				if (mod == 0b00) {
-					if (rm == 0b110) {
-						return 2 + data_bytes;
-					} else {
-						return data_bytes;
-					}
+			}
+			std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+			std::exit(EXIT_FAILURE);
+		}
+		case Operation::ASC_IMM_TO_REGMEM: {
+			u8 data_bytes = sign_bit ? 0 : 1;
+			data_bytes += wide ? 1 : 0;
+			if (mod == 0b01) {
+				return 1 + data_bytes;
+			}
+			if (mod == 0b10) {
+				return 2 + data_bytes;
+			}
+			if (mod == 0b11) {
+				return data_bytes;
+			}
+			if (mod == 0b00) {
+				if (rm == 0b110) {
+					return 2 + data_bytes;
+				} else {
+					return data_bytes;
 				}
-        std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-        std::exit(EXIT_FAILURE);
-      }
-      break;
+			}
+			std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+			std::exit(EXIT_FAILURE);
+		}
+
     default:
       std::cerr << std::format("{}: Unhandled case\n", __LINE__);
       std::exit(EXIT_FAILURE);
@@ -374,11 +443,25 @@ std::string disassemble_regmem_to_from_reg(std::string name, std::vector<u8>& in
 
 std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruction) {
 	bool wide = instruction[0] & 0b01;
+	bool sign_extension = (instruction[0] & 0b10) >> 1;
 	u8 mod = (instruction[1] & 0b11000000) >> 6;
 	u8 rm = instruction[1] & 0b111;
 
 	auto rm_it = get_rm_map().find(rm);
 	std::string length = wide ? "word" : "byte";
+
+	if (name == GENERIC_OP) {
+		name = map_generic_to_name(Operation::ASC_IMM_TO_REGMEM, instruction);
+	}
+
+	#if defined DEBUG
+	std::cout << std::format("name: {}, mod: {}, rm: {}, wide: {}, sign extension: {}\n",
+		name, mod, rm, wide, sign_extension);
+	for (auto byte : instruction) {
+		std::cout << std::hex << (int)byte << " ";
+	}
+	std::cout << std::dec << std::endl;
+	#endif
 
 	switch(mod) {
 
@@ -389,11 +472,12 @@ std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruc
 			} else {
 				data = I16(instruction[2]);
 			}
-			if (rm == 0b110) {
-				i16 addr = I16((instruction[3] << 8) + instruction[2]);
-				return std::format("{} [{}], {} {}\n", name, addr, length, data);
+			i16 addr = I16((instruction[3] << 8) + instruction[2]);
+			std::string dest = (rm == 0b110) ? std::format("{}", addr): rm_it->second;
+			if (sign_extension) {
+				return std::format("{} [{}], {} {}\n", name, dest, length, data);
 			} else {
-				return std::format("{} [{}], {} {}\n", name, rm_it->second, length, data);
+				return std::format("{} {} [{}], {}\n", name, length, dest, data);
 			}
 		}
 
@@ -405,8 +489,13 @@ std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruc
 			} else {
 				data = I16(instruction[3]);
 			}
-			return std::format("{} [{} {} {}], {} {}\n",
-				name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
+			if (sign_extension) {
+				return std::format("{} [{} {} {}], {} {}\n",
+					name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
+			} else {
+				return std::format("{} {} [{} {} {}], {}\n",
+					name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
+			}
 		}
 
 		case 0b10: {
@@ -417,8 +506,31 @@ std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruc
 			} else {
 				data = I16(instruction[4]);
 			}
-			return std::format("{} [{} {} {}], {} {}\n",
-				name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
+			if (sign_extension) {
+				return std::format("{} [{} {} {}], {} {}\n",
+					name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
+			} else {
+				return std::format("{} {} [{} {} {}], {}\n",
+					name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
+			}
+		}
+
+		case 0b11: {
+			/* No displacement */
+			u8 key_rm = rm + (wide << 3);
+			auto dest = get_register_name_map().find(key_rm);
+			if (dest == get_register_name_map().end()) {
+				std::cerr << std::format("{}: Register encoding not found\n", __LINE__);
+				std::exit(EXIT_FAILURE);
+			}
+			i16 data {};
+			if (!sign_extension) {
+				data = I16(instruction[3] << 8) + instruction[2];
+			} else {
+				data = I16(instruction[2]);
+			}
+			std::string op_name = map_generic_to_name(Operation::ASC_IMM_TO_REGMEM , instruction);
+			return std::format("{} {}, {}\n", op_name, dest->second, data);
 		}
 
 	};
@@ -471,11 +583,35 @@ std::string disassemble_acc_to_mem(std::string name, std::vector<u8>& instructio
 }
 
 
+std::string disassemble_add_to_acc(std::string name, std::vector<u8>& instruction) {
+  bool wide = instruction[0] & 0b01;
+	i16 data {};
+	std::string dest {};
+	if (wide) {
+		data = I16((instruction[2] << 8) + instruction[1]);
+		dest = "ax";
+	} else {
+		data = I8(instruction[1]);
+		dest = "al";
+	}
+	#if defined DEBUG
+	std::cout << std::format("name: {}, wide: {}, dest: {}, data: {}\n",
+		name, wide, dest, data);
+	for (auto byte : instruction) {
+		std::cout << std::hex << (int)byte << " ";
+	}
+	std::cout << std::dec << std::endl;
+	#endif
+	return std::format("{} {}, {}\n", name, dest, data);
+}
+
 std::string disassemble(std::string name, Operation op, std::vector<u8> &instruction) {
 
   switch (op) {
+		case Operation::ADD_REGMEM_WITH_REG:
     case Operation::REGMEM_TO_FROM_REG:
 			return disassemble_regmem_to_from_reg(name, instruction);
+		case Operation::ASC_IMM_TO_REGMEM:
     case Operation::IMM_TO_REGMEM:
 			return disassemble_imm_to_regmem(name, instruction);
     case Operation::IMM_TO_REG:
@@ -484,6 +620,8 @@ std::string disassemble(std::string name, Operation op, std::vector<u8> &instruc
 			return disassemble_mem_to_acc(name, instruction);
     case Operation::ACC_TO_MEM:
 			return disassemble_acc_to_mem(name, instruction);
+		case Operation::ADD_IMM_TO_ACC:
+			return disassemble_add_to_acc(name, instruction);
     default:
       std::cerr << std::format("{}: Unhandled case\n", __LINE__);
       std::exit(EXIT_FAILURE);
