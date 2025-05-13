@@ -4,7 +4,6 @@
 #include <format>
 #include <filesystem>
 #include <fstream>
-#include <locale>
 #include <vector>
 #include <cstdint>
 #include <string>
@@ -53,6 +52,8 @@ enum class Operation {
 	ADD_IMM_TO_ACC,
 	SUB_REGMEM_WITH_REG,
 	SUB_IMM_FROM_ACC,
+	CMP_REGMEM_AND_REG,
+	CMP_IMM_WITH_ACC,
   COUNT 
 };
 
@@ -75,6 +76,8 @@ constexpr std::array<Opcode, SIZE(Operation::COUNT)> opcodes {{
   {Operation::ADD_IMM_TO_ACC, 0b10, 7},
   {Operation::SUB_REGMEM_WITH_REG, 0b001010, 6},
   {Operation::SUB_IMM_FROM_ACC, 0b0010110, 7},
+  {Operation::CMP_REGMEM_AND_REG, 0b001110, 6},
+  {Operation::CMP_IMM_WITH_ACC, 0b0011110, 7},
 }};
 
 
@@ -90,6 +93,8 @@ std::string to_string(Operation operation) {
     case Operation::ADD_IMM_TO_ACC: return "Add Immediate to Accumulator";
 		case Operation::SUB_REGMEM_WITH_REG: return "Sub Register/Memory w/ Register from Either";
     case Operation::SUB_IMM_FROM_ACC: return "Sub Immediate from Accumulator";
+		case Operation::CMP_REGMEM_AND_REG: return "Compare Register/Memory and Register";
+    case Operation::CMP_IMM_WITH_ACC: return "Compare Immediate with Accumulator";
     default: return "Unknown Operation";
   }
 }
@@ -112,6 +117,9 @@ std::string get_opcode_name(Operation operation) {
 		case O::SUB_REGMEM_WITH_REG:
 		case O::SUB_IMM_FROM_ACC:
 			return "sub";
+		case O::CMP_REGMEM_AND_REG:
+		case O::CMP_IMM_WITH_ACC:
+			return "cmp";
     default:
       std::cerr << std::format(
         "{}: Unrecognized opcode: {}\n", __LINE__, to_underlying(operation)
@@ -236,6 +244,7 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
     case Operation::REGMEM_TO_FROM_REG:
 		case Operation::ADD_REGMEM_WITH_REG:
 		case Operation::SUB_REGMEM_WITH_REG:
+		case Operation::CMP_REGMEM_AND_REG:
       more = true;
       return 1;
 		case Operation::ASC_IMM_TO_REGMEM:
@@ -247,6 +256,7 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
       more = false;
       return wide ? 2 : 1;
 		}
+		case Operation::CMP_IMM_WITH_ACC:
 		case Operation::SUB_IMM_FROM_ACC:
 		case Operation::ADD_IMM_TO_ACC: {
 			bool wide = instruction[0] & 0b01;
@@ -274,6 +284,7 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
   u8 mod = (low & 0b11000000) >> 6;
   u8 rm = low & 0b00000111;
   switch (op) {
+		case Operation::CMP_REGMEM_AND_REG:
 		case Operation::SUB_REGMEM_WITH_REG:
 		case Operation::ADD_REGMEM_WITH_REG:
     case Operation::REGMEM_TO_FROM_REG:
@@ -620,6 +631,7 @@ std::string disassemble_add_to_acc(std::string name, std::vector<u8>& instructio
 std::string disassemble(std::string name, Operation op, std::vector<u8> &instruction) {
 
   switch (op) {
+		case Operation::CMP_REGMEM_AND_REG:
 		case Operation::SUB_REGMEM_WITH_REG:
 		case Operation::ADD_REGMEM_WITH_REG:
     case Operation::REGMEM_TO_FROM_REG:
@@ -633,6 +645,7 @@ std::string disassemble(std::string name, Operation op, std::vector<u8> &instruc
 			return disassemble_mem_to_acc(name, instruction);
     case Operation::ACC_TO_MEM:
 			return disassemble_acc_to_mem(name, instruction);
+		case Operation::CMP_IMM_WITH_ACC:
 		case Operation::SUB_IMM_FROM_ACC:
 		case Operation::ADD_IMM_TO_ACC:
 			return disassemble_add_to_acc(name, instruction);
