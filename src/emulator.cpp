@@ -54,6 +54,26 @@ enum class Operation {
 	SUB_IMM_FROM_ACC,
 	CMP_REGMEM_AND_REG,
 	CMP_IMM_WITH_ACC,
+	JMP_EQUAL,
+	JMP_LESS,
+	JMP_LESS_OR_EQUAL,
+	JMP_BELOW,
+	JMP_BELOW_OR_EQUAL,
+	JMP_PARITY,
+	JMP_OVERFLOW,
+	JMP_SIGN,
+	JMP_NOT_EQUAL,
+	JMP_NOT_LESS,
+	JMP_NOT_LESS_OR_EQUAL,
+	JMP_NOT_BELOW,
+	JMP_NOT_BELOW_OR_EQUAL,
+	JMP_NOT_PARITY,
+	JMP_NOT_OVERFLOW,
+	JMP_NOT_SIGN,
+	LOOP,
+	LOOPZ,
+	LOOPNZ,
+	JMP_CX_ZERO,
   COUNT 
 };
 
@@ -66,18 +86,38 @@ struct Opcode {
 
 
 constexpr std::array<Opcode, SIZE(Operation::COUNT)> opcodes {{
-  {Operation::REGMEM_TO_FROM_REG, 0b100010, 6},
-  {Operation::IMM_TO_REGMEM, 0b1100011, 7},
-  {Operation::IMM_TO_REG, 0b1011, 4},
-  {Operation::MEM_TO_ACC, 0b1010000, 7},
-  {Operation::ACC_TO_MEM, 0b1010001, 7},
-  {Operation::ASC_IMM_TO_REGMEM, 0b100000, 6},
-  {Operation::ADD_REGMEM_WITH_REG, 0b0, 6},
-  {Operation::ADD_IMM_TO_ACC, 0b10, 7},
-  {Operation::SUB_REGMEM_WITH_REG, 0b001010, 6},
-  {Operation::SUB_IMM_FROM_ACC, 0b0010110, 7},
-  {Operation::CMP_REGMEM_AND_REG, 0b001110, 6},
-  {Operation::CMP_IMM_WITH_ACC, 0b0011110, 7},
+  {Operation::REGMEM_TO_FROM_REG,			0b100010, 6},
+  {Operation::IMM_TO_REGMEM,					0b1100011, 7},
+  {Operation::IMM_TO_REG,							0b1011, 4},
+  {Operation::MEM_TO_ACC,							0b1010000, 7},
+  {Operation::ACC_TO_MEM,							0b1010001, 7},
+  {Operation::ASC_IMM_TO_REGMEM,			0b100000, 6},
+  {Operation::ADD_REGMEM_WITH_REG,		0b0, 6},
+  {Operation::ADD_IMM_TO_ACC,					0b10, 7},
+  {Operation::SUB_REGMEM_WITH_REG,		0b001010, 6},
+  {Operation::SUB_IMM_FROM_ACC,				0b0010110, 7},
+  {Operation::CMP_REGMEM_AND_REG,			0b001110, 6},
+  {Operation::CMP_IMM_WITH_ACC,				0b0011110, 7},
+	{Operation::JMP_EQUAL,              0b01110100, 8},
+	{Operation::JMP_LESS,               0b01111100, 8},
+	{Operation::JMP_LESS_OR_EQUAL,      0b01111110, 8},
+	{Operation::JMP_BELOW,              0b01110010, 8},
+	{Operation::JMP_BELOW_OR_EQUAL,     0b01110110, 8},
+	{Operation::JMP_PARITY,             0b01111010, 8},
+	{Operation::JMP_OVERFLOW,           0b01110000, 8},
+	{Operation::JMP_SIGN,               0b01111000, 8},
+	{Operation::JMP_NOT_EQUAL,          0b01110101, 8},
+	{Operation::JMP_NOT_LESS,           0b01111101, 8},
+	{Operation::JMP_NOT_LESS_OR_EQUAL,  0b01111111, 8},
+	{Operation::JMP_NOT_BELOW,          0b01110011, 8},
+	{Operation::JMP_NOT_BELOW_OR_EQUAL, 0b01110111, 8},
+	{Operation::JMP_NOT_PARITY,         0b01111011, 8},
+	{Operation::JMP_NOT_SIGN,           0b01111001, 8},
+	{Operation::JMP_NOT_OVERFLOW,       0b01110001, 8},
+	{Operation::LOOP,                   0b11100010, 8},
+	{Operation::LOOPZ,                  0b11100001, 8},
+	{Operation::LOOPNZ,                 0b11100000, 8},
+	{Operation::JMP_CX_ZERO,            0b11100011, 8} 
 }};
 
 
@@ -101,25 +141,64 @@ std::string to_string(Operation operation) {
 
 
 std::string get_opcode_name(Operation operation) {
-  using O = Operation;
   switch (operation) {
-    case O::REGMEM_TO_FROM_REG:
-    case O::IMM_TO_REGMEM:
-    case O::IMM_TO_REG:
-    case O::MEM_TO_ACC:
-    case O::ACC_TO_MEM:
+    case Operation::REGMEM_TO_FROM_REG:
+    case Operation::IMM_TO_REGMEM:
+    case Operation::IMM_TO_REG:
+    case Operation::MEM_TO_ACC:
+    case Operation::ACC_TO_MEM:
       return "mov";
-    case O::ASC_IMM_TO_REGMEM:
+    case Operation::ASC_IMM_TO_REGMEM:
 			return "asc";  // Not a real name, needs further decoding
-    case O::ADD_REGMEM_WITH_REG:
-    case O::ADD_IMM_TO_ACC:
+    case Operation::ADD_REGMEM_WITH_REG:
+    case Operation::ADD_IMM_TO_ACC:
 			return "add";
-		case O::SUB_REGMEM_WITH_REG:
-		case O::SUB_IMM_FROM_ACC:
+		case Operation::SUB_REGMEM_WITH_REG:
+		case Operation::SUB_IMM_FROM_ACC:
 			return "sub";
-		case O::CMP_REGMEM_AND_REG:
-		case O::CMP_IMM_WITH_ACC:
+		case Operation::CMP_REGMEM_AND_REG:
+		case Operation::CMP_IMM_WITH_ACC:
 			return "cmp";
+		case Operation::JMP_EQUAL:
+			return "je";
+		case Operation::JMP_LESS:
+			return "jl";
+		case Operation::JMP_LESS_OR_EQUAL:
+			return "jle";
+		case Operation::JMP_BELOW:
+			return "jb";
+		case Operation::JMP_BELOW_OR_EQUAL:
+			return "jbe";
+		case Operation::JMP_PARITY:
+			return "jp";
+		case Operation::JMP_OVERFLOW:
+			return "jo";
+		case Operation::JMP_SIGN:
+			return "js";
+		case Operation::JMP_NOT_EQUAL:
+			return "jne";
+		case Operation::JMP_NOT_LESS:
+			return "jnl";
+		case Operation::JMP_NOT_LESS_OR_EQUAL:
+			return "jnle";
+		case Operation::JMP_NOT_BELOW:
+			return "jnb";
+		case Operation::JMP_NOT_BELOW_OR_EQUAL:
+			return "jnbe";
+		case Operation::JMP_NOT_PARITY:
+			return "jnp";
+		case Operation::JMP_NOT_OVERFLOW:
+			return "jno";
+		case Operation::JMP_NOT_SIGN:
+			return "jns";
+		case Operation::LOOP:
+			return "loop";
+		case Operation::LOOPZ:
+			return "loopz";
+		case Operation::LOOPNZ:
+			return "loopnz";
+		case Operation::JMP_CX_ZERO:
+			return "jcxz";
     default:
       std::cerr << std::format(
         "{}: Unrecognized opcode: {}\n", __LINE__, to_underlying(operation)
@@ -241,6 +320,28 @@ void read_binary_file(const std::string& filename, std::vector<u8> &program_buff
 
 u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
   switch (op) {
+		case Operation::JMP_EQUAL:
+		case Operation::JMP_LESS:
+		case Operation::JMP_LESS_OR_EQUAL:
+		case Operation::JMP_BELOW:
+		case Operation::JMP_BELOW_OR_EQUAL:
+		case Operation::JMP_PARITY:
+		case Operation::JMP_OVERFLOW:
+		case Operation::JMP_SIGN:
+		case Operation::JMP_NOT_EQUAL:
+		case Operation::JMP_NOT_LESS:
+		case Operation::JMP_NOT_LESS_OR_EQUAL:
+		case Operation::JMP_NOT_BELOW:
+		case Operation::JMP_NOT_BELOW_OR_EQUAL:
+		case Operation::JMP_NOT_PARITY:
+		case Operation::JMP_NOT_OVERFLOW:
+		case Operation::JMP_NOT_SIGN:
+		case Operation::LOOP:
+		case Operation::LOOPZ:
+		case Operation::LOOPNZ:
+		case Operation::JMP_CX_ZERO:
+			more = false;
+			return 1;
     case Operation::REGMEM_TO_FROM_REG:
 		case Operation::ADD_REGMEM_WITH_REG:
 		case Operation::SUB_REGMEM_WITH_REG:
@@ -628,9 +729,36 @@ std::string disassemble_add_to_acc(std::string name, std::vector<u8>& instructio
 	return std::format("{} {}, {}\n", name, dest, data);
 }
 
+
+std::string disassemble_jmp(std::string name, std::vector<u8>& instruction) {
+	return std::format("{} {}\n", name, I8(instruction[1]));
+}
+
+
 std::string disassemble(std::string name, Operation op, std::vector<u8> &instruction) {
 
   switch (op) {
+		case Operation::JMP_EQUAL:
+		case Operation::JMP_LESS:
+		case Operation::JMP_LESS_OR_EQUAL:
+		case Operation::JMP_BELOW:
+		case Operation::JMP_BELOW_OR_EQUAL:
+		case Operation::JMP_PARITY:
+		case Operation::JMP_OVERFLOW:
+		case Operation::JMP_SIGN:
+		case Operation::JMP_NOT_EQUAL:
+		case Operation::JMP_NOT_LESS:
+		case Operation::JMP_NOT_LESS_OR_EQUAL:
+		case Operation::JMP_NOT_BELOW:
+		case Operation::JMP_NOT_BELOW_OR_EQUAL:
+		case Operation::JMP_NOT_PARITY:
+		case Operation::JMP_NOT_OVERFLOW:
+		case Operation::JMP_NOT_SIGN:
+		case Operation::LOOP:
+		case Operation::LOOPZ:
+		case Operation::LOOPNZ:
+		case Operation::JMP_CX_ZERO:
+			return disassemble_jmp(name, instruction);
 		case Operation::CMP_REGMEM_AND_REG:
 		case Operation::SUB_REGMEM_WITH_REG:
 		case Operation::ADD_REGMEM_WITH_REG:
