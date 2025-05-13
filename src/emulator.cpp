@@ -48,9 +48,11 @@ enum class Operation {
   IMM_TO_REG,
   MEM_TO_ACC,
   ACC_TO_MEM,
-	ADD_REGMEM_WITH_REG,
 	ASC_IMM_TO_REGMEM,
+	ADD_REGMEM_WITH_REG,
 	ADD_IMM_TO_ACC,
+	SUB_REGMEM_WITH_REG,
+	SUB_IMM_FROM_ACC,
   COUNT 
 };
 
@@ -68,9 +70,11 @@ constexpr std::array<Opcode, SIZE(Operation::COUNT)> opcodes {{
   {Operation::IMM_TO_REG, 0b1011, 4},
   {Operation::MEM_TO_ACC, 0b1010000, 7},
   {Operation::ACC_TO_MEM, 0b1010001, 7},
-  {Operation::ADD_REGMEM_WITH_REG, 0b0, 6},
   {Operation::ASC_IMM_TO_REGMEM, 0b100000, 6},
+  {Operation::ADD_REGMEM_WITH_REG, 0b0, 6},
   {Operation::ADD_IMM_TO_ACC, 0b10, 7},
+  {Operation::SUB_REGMEM_WITH_REG, 0b001010, 6},
+  {Operation::SUB_IMM_FROM_ACC, 0b0010110, 7},
 }};
 
 
@@ -81,9 +85,11 @@ std::string to_string(Operation operation) {
     case Operation::IMM_TO_REG: return "Immediate to Register";
     case Operation::MEM_TO_ACC: return "Memory to Accumulator";
     case Operation::ACC_TO_MEM: return "Accumulator to Memory";
-    case Operation::ADD_REGMEM_WITH_REG: return "Add/Sub/Comp Register/Memory w/ Register to Either";
     case Operation::ASC_IMM_TO_REGMEM: return "Add/Sub/Comp Immediate to Register/Memory";
-    case Operation::ADD_IMM_TO_ACC: return "Add/Sub/Comp Immediate to Accumulator";
+    case Operation::ADD_REGMEM_WITH_REG: return "Add Register/Memory w/ Register to Either";
+    case Operation::ADD_IMM_TO_ACC: return "Add Immediate to Accumulator";
+		case Operation::SUB_REGMEM_WITH_REG: return "Sub Register/Memory w/ Register from Either";
+    case Operation::SUB_IMM_FROM_ACC: return "Sub Immediate from Accumulator";
     default: return "Unknown Operation";
   }
 }
@@ -98,11 +104,14 @@ std::string get_opcode_name(Operation operation) {
     case O::MEM_TO_ACC:
     case O::ACC_TO_MEM:
       return "mov";
+    case O::ASC_IMM_TO_REGMEM:
+			return "asc";  // Not a real name, needs further decoding
     case O::ADD_REGMEM_WITH_REG:
     case O::ADD_IMM_TO_ACC:
 			return "add";
-    case O::ASC_IMM_TO_REGMEM:
-			return "asc";  // Not a real name, needs further decoding
+		case O::SUB_REGMEM_WITH_REG:
+		case O::SUB_IMM_FROM_ACC:
+			return "sub";
     default:
       std::cerr << std::format(
         "{}: Unrecognized opcode: {}\n", __LINE__, to_underlying(operation)
@@ -226,6 +235,7 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
   switch (op) {
     case Operation::REGMEM_TO_FROM_REG:
 		case Operation::ADD_REGMEM_WITH_REG:
+		case Operation::SUB_REGMEM_WITH_REG:
       more = true;
       return 1;
 		case Operation::ASC_IMM_TO_REGMEM:
@@ -237,6 +247,7 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
       more = false;
       return wide ? 2 : 1;
 		}
+		case Operation::SUB_IMM_FROM_ACC:
 		case Operation::ADD_IMM_TO_ACC: {
 			bool wide = instruction[0] & 0b01;
       more = false;
@@ -263,6 +274,7 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
   u8 mod = (low & 0b11000000) >> 6;
   u8 rm = low & 0b00000111;
   switch (op) {
+		case Operation::SUB_REGMEM_WITH_REG:
 		case Operation::ADD_REGMEM_WITH_REG:
     case Operation::REGMEM_TO_FROM_REG:
 			if (mod == 0b01) {
@@ -608,6 +620,7 @@ std::string disassemble_add_to_acc(std::string name, std::vector<u8>& instructio
 std::string disassemble(std::string name, Operation op, std::vector<u8> &instruction) {
 
   switch (op) {
+		case Operation::SUB_REGMEM_WITH_REG:
 		case Operation::ADD_REGMEM_WITH_REG:
     case Operation::REGMEM_TO_FROM_REG:
 			return disassemble_regmem_to_from_reg(name, instruction);
@@ -620,6 +633,7 @@ std::string disassemble(std::string name, Operation op, std::vector<u8> &instruc
 			return disassemble_mem_to_acc(name, instruction);
     case Operation::ACC_TO_MEM:
 			return disassemble_acc_to_mem(name, instruction);
+		case Operation::SUB_IMM_FROM_ACC:
 		case Operation::ADD_IMM_TO_ACC:
 			return disassemble_add_to_acc(name, instruction);
     default:
