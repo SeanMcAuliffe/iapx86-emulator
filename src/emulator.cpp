@@ -7,6 +7,7 @@
 #include <vector>
 #include <cstdint>
 #include <string>
+#include <sstream>
 #include <unordered_map>
 #include <array>
 
@@ -27,7 +28,7 @@ using i64 = int64_t;
 #define SIZE(x) static_cast<size_t>(x)
 
 
-const std::string GENERIC_OP = "asc";
+constexpr std::string_view GENERIC_OP = "asc";
 
 
 template <class E>
@@ -47,33 +48,33 @@ enum class Operation {
   IMM_TO_REG,
   MEM_TO_ACC,
   ACC_TO_MEM,
-	ASC_IMM_TO_REGMEM,
-	ADD_REGMEM_WITH_REG,
-	ADD_IMM_TO_ACC,
-	SUB_REGMEM_WITH_REG,
-	SUB_IMM_FROM_ACC,
-	CMP_REGMEM_AND_REG,
-	CMP_IMM_WITH_ACC,
-	JMP_EQUAL,
-	JMP_LESS,
-	JMP_LESS_OR_EQUAL,
-	JMP_BELOW,
-	JMP_BELOW_OR_EQUAL,
-	JMP_PARITY,
-	JMP_OVERFLOW,
-	JMP_SIGN,
-	JMP_NOT_EQUAL,
-	JMP_NOT_LESS,
-	JMP_NOT_LESS_OR_EQUAL,
-	JMP_NOT_BELOW,
-	JMP_NOT_BELOW_OR_EQUAL,
-	JMP_NOT_PARITY,
-	JMP_NOT_OVERFLOW,
-	JMP_NOT_SIGN,
-	LOOP,
-	LOOPZ,
-	LOOPNZ,
-	JMP_CX_ZERO,
+  ASC_IMM_TO_REGMEM,
+  ADD_REGMEM_WITH_REG,
+  ADD_IMM_TO_ACC,
+  SUB_REGMEM_WITH_REG,
+  SUB_IMM_FROM_ACC,
+  CMP_REGMEM_AND_REG,
+  CMP_IMM_WITH_ACC,
+  JMP_EQUAL,
+  JMP_LESS,
+  JMP_LESS_OR_EQUAL,
+  JMP_BELOW,
+  JMP_BELOW_OR_EQUAL,
+  JMP_PARITY,
+  JMP_OVERFLOW,
+  JMP_SIGN,
+  JMP_NOT_EQUAL,
+  JMP_NOT_LESS,
+  JMP_NOT_LESS_OR_EQUAL,
+  JMP_NOT_BELOW,
+  JMP_NOT_BELOW_OR_EQUAL,
+  JMP_NOT_PARITY,
+  JMP_NOT_OVERFLOW,
+  JMP_NOT_SIGN,
+  LOOP,
+  LOOPZ,
+  LOOPNZ,
+  JMP_CX_ZERO,
   COUNT 
 };
 
@@ -86,38 +87,38 @@ struct Opcode {
 
 
 constexpr std::array<Opcode, SIZE(Operation::COUNT)> opcodes {{
-  {Operation::REGMEM_TO_FROM_REG,			0b100010, 6},
-  {Operation::IMM_TO_REGMEM,					0b1100011, 7},
-  {Operation::IMM_TO_REG,							0b1011, 4},
-  {Operation::MEM_TO_ACC,							0b1010000, 7},
-  {Operation::ACC_TO_MEM,							0b1010001, 7},
-  {Operation::ASC_IMM_TO_REGMEM,			0b100000, 6},
-  {Operation::ADD_REGMEM_WITH_REG,		0b0, 6},
-  {Operation::ADD_IMM_TO_ACC,					0b10, 7},
-  {Operation::SUB_REGMEM_WITH_REG,		0b001010, 6},
-  {Operation::SUB_IMM_FROM_ACC,				0b0010110, 7},
-  {Operation::CMP_REGMEM_AND_REG,			0b001110, 6},
-  {Operation::CMP_IMM_WITH_ACC,				0b0011110, 7},
-	{Operation::JMP_EQUAL,              0b01110100, 8},
-	{Operation::JMP_LESS,               0b01111100, 8},
-	{Operation::JMP_LESS_OR_EQUAL,      0b01111110, 8},
-	{Operation::JMP_BELOW,              0b01110010, 8},
-	{Operation::JMP_BELOW_OR_EQUAL,     0b01110110, 8},
-	{Operation::JMP_PARITY,             0b01111010, 8},
-	{Operation::JMP_OVERFLOW,           0b01110000, 8},
-	{Operation::JMP_SIGN,               0b01111000, 8},
-	{Operation::JMP_NOT_EQUAL,          0b01110101, 8},
-	{Operation::JMP_NOT_LESS,           0b01111101, 8},
-	{Operation::JMP_NOT_LESS_OR_EQUAL,  0b01111111, 8},
-	{Operation::JMP_NOT_BELOW,          0b01110011, 8},
-	{Operation::JMP_NOT_BELOW_OR_EQUAL, 0b01110111, 8},
-	{Operation::JMP_NOT_PARITY,         0b01111011, 8},
-	{Operation::JMP_NOT_SIGN,           0b01111001, 8},
-	{Operation::JMP_NOT_OVERFLOW,       0b01110001, 8},
-	{Operation::LOOP,                   0b11100010, 8},
-	{Operation::LOOPZ,                  0b11100001, 8},
-	{Operation::LOOPNZ,                 0b11100000, 8},
-	{Operation::JMP_CX_ZERO,            0b11100011, 8} 
+  {Operation::REGMEM_TO_FROM_REG,     0b100010, 6},
+  {Operation::IMM_TO_REGMEM,          0b1100011, 7},
+  {Operation::IMM_TO_REG,             0b1011, 4},
+  {Operation::MEM_TO_ACC,             0b1010000, 7},
+  {Operation::ACC_TO_MEM,             0b1010001, 7},
+  {Operation::ASC_IMM_TO_REGMEM,      0b100000, 6},
+  {Operation::ADD_REGMEM_WITH_REG,    0b0, 6},
+  {Operation::ADD_IMM_TO_ACC,         0b10, 7},
+  {Operation::SUB_REGMEM_WITH_REG,    0b001010, 6},
+  {Operation::SUB_IMM_FROM_ACC,       0b0010110, 7},
+  {Operation::CMP_REGMEM_AND_REG,     0b001110, 6},
+  {Operation::CMP_IMM_WITH_ACC,       0b0011110, 7},
+  {Operation::JMP_EQUAL,              0b01110100, 8},
+  {Operation::JMP_LESS,               0b01111100, 8},
+  {Operation::JMP_LESS_OR_EQUAL,      0b01111110, 8},
+  {Operation::JMP_BELOW,              0b01110010, 8},
+  {Operation::JMP_BELOW_OR_EQUAL,     0b01110110, 8},
+  {Operation::JMP_PARITY,             0b01111010, 8},
+  {Operation::JMP_OVERFLOW,           0b01110000, 8},
+  {Operation::JMP_SIGN,               0b01111000, 8},
+  {Operation::JMP_NOT_EQUAL,          0b01110101, 8},
+  {Operation::JMP_NOT_LESS,           0b01111101, 8},
+  {Operation::JMP_NOT_LESS_OR_EQUAL,  0b01111111, 8},
+  {Operation::JMP_NOT_BELOW,          0b01110011, 8},
+  {Operation::JMP_NOT_BELOW_OR_EQUAL, 0b01110111, 8},
+  {Operation::JMP_NOT_PARITY,         0b01111011, 8},
+  {Operation::JMP_NOT_SIGN,           0b01111001, 8},
+  {Operation::JMP_NOT_OVERFLOW,       0b01110001, 8},
+  {Operation::LOOP,                   0b11100010, 8},
+  {Operation::LOOPZ,                  0b11100001, 8},
+  {Operation::LOOPNZ,                 0b11100000, 8},
+  {Operation::JMP_CX_ZERO,            0b11100011, 8} 
 }};
 
 
@@ -131,9 +132,9 @@ std::string to_string(Operation operation) {
     case Operation::ASC_IMM_TO_REGMEM: return "Add/Sub/Comp Immediate to Register/Memory";
     case Operation::ADD_REGMEM_WITH_REG: return "Add Register/Memory w/ Register to Either";
     case Operation::ADD_IMM_TO_ACC: return "Add Immediate to Accumulator";
-		case Operation::SUB_REGMEM_WITH_REG: return "Sub Register/Memory w/ Register from Either";
+    case Operation::SUB_REGMEM_WITH_REG: return "Sub Register/Memory w/ Register from Either";
     case Operation::SUB_IMM_FROM_ACC: return "Sub Immediate from Accumulator";
-		case Operation::CMP_REGMEM_AND_REG: return "Compare Register/Memory and Register";
+    case Operation::CMP_REGMEM_AND_REG: return "Compare Register/Memory and Register";
     case Operation::CMP_IMM_WITH_ACC: return "Compare Immediate with Accumulator";
     default: return "Unknown Operation";
   }
@@ -149,56 +150,56 @@ std::string get_opcode_name(Operation operation) {
     case Operation::ACC_TO_MEM:
       return "mov";
     case Operation::ASC_IMM_TO_REGMEM:
-			return "asc";  // Not a real name, needs further decoding
+      return "asc";  // Not a real name, needs further decoding
     case Operation::ADD_REGMEM_WITH_REG:
     case Operation::ADD_IMM_TO_ACC:
-			return "add";
-		case Operation::SUB_REGMEM_WITH_REG:
-		case Operation::SUB_IMM_FROM_ACC:
-			return "sub";
-		case Operation::CMP_REGMEM_AND_REG:
-		case Operation::CMP_IMM_WITH_ACC:
-			return "cmp";
-		case Operation::JMP_EQUAL:
-			return "je";
-		case Operation::JMP_LESS:
-			return "jl";
-		case Operation::JMP_LESS_OR_EQUAL:
-			return "jle";
-		case Operation::JMP_BELOW:
-			return "jb";
-		case Operation::JMP_BELOW_OR_EQUAL:
-			return "jbe";
-		case Operation::JMP_PARITY:
-			return "jp";
-		case Operation::JMP_OVERFLOW:
-			return "jo";
-		case Operation::JMP_SIGN:
-			return "js";
-		case Operation::JMP_NOT_EQUAL:
-			return "jne";
-		case Operation::JMP_NOT_LESS:
-			return "jnl";
-		case Operation::JMP_NOT_LESS_OR_EQUAL:
-			return "jnle";
-		case Operation::JMP_NOT_BELOW:
-			return "jnb";
-		case Operation::JMP_NOT_BELOW_OR_EQUAL:
-			return "jnbe";
-		case Operation::JMP_NOT_PARITY:
-			return "jnp";
-		case Operation::JMP_NOT_OVERFLOW:
-			return "jno";
-		case Operation::JMP_NOT_SIGN:
-			return "jns";
-		case Operation::LOOP:
-			return "loop";
-		case Operation::LOOPZ:
-			return "loopz";
-		case Operation::LOOPNZ:
-			return "loopnz";
-		case Operation::JMP_CX_ZERO:
-			return "jcxz";
+      return "add";
+    case Operation::SUB_REGMEM_WITH_REG:
+    case Operation::SUB_IMM_FROM_ACC:
+      return "sub";
+    case Operation::CMP_REGMEM_AND_REG:
+    case Operation::CMP_IMM_WITH_ACC:
+      return "cmp";
+    case Operation::JMP_EQUAL:
+      return "je";
+    case Operation::JMP_LESS:
+      return "jl";
+    case Operation::JMP_LESS_OR_EQUAL:
+      return "jle";
+    case Operation::JMP_BELOW:
+      return "jb";
+    case Operation::JMP_BELOW_OR_EQUAL:
+      return "jbe";
+    case Operation::JMP_PARITY:
+      return "jp";
+    case Operation::JMP_OVERFLOW:
+      return "jo";
+    case Operation::JMP_SIGN:
+      return "js";
+    case Operation::JMP_NOT_EQUAL:
+      return "jne";
+    case Operation::JMP_NOT_LESS:
+      return "jnl";
+    case Operation::JMP_NOT_LESS_OR_EQUAL:
+      return "jnle";
+    case Operation::JMP_NOT_BELOW:
+      return "jnb";
+    case Operation::JMP_NOT_BELOW_OR_EQUAL:
+      return "jnbe";
+    case Operation::JMP_NOT_PARITY:
+      return "jnp";
+    case Operation::JMP_NOT_OVERFLOW:
+      return "jno";
+    case Operation::JMP_NOT_SIGN:
+      return "jns";
+    case Operation::LOOP:
+      return "loop";
+    case Operation::LOOPZ:
+      return "loopz";
+    case Operation::LOOPNZ:
+      return "loopnz";
+    case Operation::JMP_CX_ZERO:
+      return "jcxz";
     default:
       std::cerr << std::format(
         "{}: Unrecognized opcode: {}\n", __LINE__, to_underlying(operation)
@@ -260,29 +261,29 @@ const std::unordered_map<u8, std::string>& get_register_name_map() {
 
 
 std::string map_generic_to_name(Operation op, std::vector<u8>& instruction) {
-	static constexpr std::array<std::pair<u8, const char*>, 3> GENERIC_OP_NAMES {{
-		{U8(0b000), "add"},
-		{U8(0b101), "sub"},
-		{U8(0b111), "cmp"}
-	}};
-	static const std::unordered_map<u8, std::string> op_names(
-			GENERIC_OP_NAMES.begin(), GENERIC_OP_NAMES.end()
-	);
-	switch (op) {
-		case Operation::ASC_IMM_TO_REGMEM: {
-			u8 identifier = (instruction[1] & 0b111000) >> 3;
-			auto op_name = op_names.find(identifier);
-			if (op_name == op_names.end()) {
-				std::cerr << std::format("{}: could find find op name\n", __LINE__);
-				std::exit(EXIT_FAILURE);
-			}
-			return op_name->second;
-		}
-		default:
-			std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-			std::exit(EXIT_FAILURE);
-			break;
-	}
+  static constexpr std::array<std::pair<u8, const char*>, 3> GENERIC_OP_NAMES {{
+    {U8(0b000), "add"},
+    {U8(0b101), "sub"},
+    {U8(0b111), "cmp"}
+  }};
+  static const std::unordered_map<u8, std::string> op_names(
+      GENERIC_OP_NAMES.begin(), GENERIC_OP_NAMES.end()
+  );
+  switch (op) {
+    case Operation::ASC_IMM_TO_REGMEM: {
+      u8 identifier = (instruction[1] & 0b111000) >> 3;
+      auto op_name = op_names.find(identifier);
+      if (op_name == op_names.end()) {
+        std::cerr << std::format("{}: could find find op name\n", __LINE__);
+        std::exit(EXIT_FAILURE);
+      }
+      return op_name->second;
+    }
+    default:
+      std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+      std::exit(EXIT_FAILURE);
+      break;
+  }
 }
 
 constexpr std::array<std::pair<u8, const char*>, 8> RM_ENCODING{{
@@ -320,50 +321,50 @@ void read_binary_file(const std::string& filename, std::vector<u8> &program_buff
 
 u8 additional_bytes(Operation op, std::vector<u8> &instruction, bool &more) {
   switch (op) {
-		case Operation::JMP_EQUAL:
-		case Operation::JMP_LESS:
-		case Operation::JMP_LESS_OR_EQUAL:
-		case Operation::JMP_BELOW:
-		case Operation::JMP_BELOW_OR_EQUAL:
-		case Operation::JMP_PARITY:
-		case Operation::JMP_OVERFLOW:
-		case Operation::JMP_SIGN:
-		case Operation::JMP_NOT_EQUAL:
-		case Operation::JMP_NOT_LESS:
-		case Operation::JMP_NOT_LESS_OR_EQUAL:
-		case Operation::JMP_NOT_BELOW:
-		case Operation::JMP_NOT_BELOW_OR_EQUAL:
-		case Operation::JMP_NOT_PARITY:
-		case Operation::JMP_NOT_OVERFLOW:
-		case Operation::JMP_NOT_SIGN:
-		case Operation::LOOP:
-		case Operation::LOOPZ:
-		case Operation::LOOPNZ:
-		case Operation::JMP_CX_ZERO:
-			more = false;
-			return 1;
+    case Operation::JMP_EQUAL:
+    case Operation::JMP_LESS:
+    case Operation::JMP_LESS_OR_EQUAL:
+    case Operation::JMP_BELOW:
+    case Operation::JMP_BELOW_OR_EQUAL:
+    case Operation::JMP_PARITY:
+    case Operation::JMP_OVERFLOW:
+    case Operation::JMP_SIGN:
+    case Operation::JMP_NOT_EQUAL:
+    case Operation::JMP_NOT_LESS:
+    case Operation::JMP_NOT_LESS_OR_EQUAL:
+    case Operation::JMP_NOT_BELOW:
+    case Operation::JMP_NOT_BELOW_OR_EQUAL:
+    case Operation::JMP_NOT_PARITY:
+    case Operation::JMP_NOT_OVERFLOW:
+    case Operation::JMP_NOT_SIGN:
+    case Operation::LOOP:
+    case Operation::LOOPZ:
+    case Operation::LOOPNZ:
+    case Operation::JMP_CX_ZERO:
+      more = false;
+      return 1;
     case Operation::REGMEM_TO_FROM_REG:
-		case Operation::ADD_REGMEM_WITH_REG:
-		case Operation::SUB_REGMEM_WITH_REG:
-		case Operation::CMP_REGMEM_AND_REG:
+    case Operation::ADD_REGMEM_WITH_REG:
+    case Operation::SUB_REGMEM_WITH_REG:
+    case Operation::CMP_REGMEM_AND_REG:
       more = true;
       return 1;
-		case Operation::ASC_IMM_TO_REGMEM:
+    case Operation::ASC_IMM_TO_REGMEM:
     case Operation::IMM_TO_REGMEM:
       more = true;
       return 1;
     case Operation::IMM_TO_REG: {
-			bool wide = (instruction[0] & 0b1000) >> 3;
+      bool wide = (instruction[0] & 0b1000) >> 3;
       more = false;
       return wide ? 2 : 1;
-		}
-		case Operation::CMP_IMM_WITH_ACC:
-		case Operation::SUB_IMM_FROM_ACC:
-		case Operation::ADD_IMM_TO_ACC: {
-			bool wide = instruction[0] & 0b01;
+    }
+    case Operation::CMP_IMM_WITH_ACC:
+    case Operation::SUB_IMM_FROM_ACC:
+    case Operation::ADD_IMM_TO_ACC: {
+      bool wide = instruction[0] & 0b01;
       more = false;
       return wide ? 2 : 1;
-		}
+    }
     case Operation::MEM_TO_ACC:
       more = false;
       return 2;
@@ -381,78 +382,78 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
   u8 high = instruction[0];
   u8 low = instruction[1];
   bool wide = high & 0b01;
-	bool sign_bit = (high & 0b10) >> 1;
+  bool sign_bit = (high & 0b10) >> 1;
   u8 mod = (low & 0b11000000) >> 6;
   u8 rm = low & 0b00000111;
   switch (op) {
-		case Operation::CMP_REGMEM_AND_REG:
-		case Operation::SUB_REGMEM_WITH_REG:
-		case Operation::ADD_REGMEM_WITH_REG:
+    case Operation::CMP_REGMEM_AND_REG:
+    case Operation::SUB_REGMEM_WITH_REG:
+    case Operation::ADD_REGMEM_WITH_REG:
     case Operation::REGMEM_TO_FROM_REG:
-			if (mod == 0b01) {
-				return 1;
-			}
-			if (mod == 0b10) {
-				return 2;
-			}
-			if (mod == 0b11) {
-				return 0;
-			}
-			if (mod == 0b00) {
-				if (rm == 0b110) {
-					return 2;
-				} else {
-					return 0;
-				}
-			}
-			std::cerr << std::format(
-				"{}: Unhandled case, mod = {}, rm = {}\n", __LINE__, mod, rm
-			);
+      if (mod == 0b01) {
+        return 1;
+      }
+      if (mod == 0b10) {
+        return 2;
+      }
+      if (mod == 0b11) {
+        return 0;
+      }
+      if (mod == 0b00) {
+        if (rm == 0b110) {
+          return 2;
+        } else {
+          return 0;
+        }
+      }
+      std::cerr << std::format(
+        "{}: Unhandled case, mod = {}, rm = {}\n", __LINE__, mod, rm
+      );
       std::exit(EXIT_FAILURE);
       break;
     case Operation::IMM_TO_REGMEM: {
-			u8 data_bytes = wide ? 2 : 1;
-			if (mod == 0b01) {
-				return 1 + data_bytes;
-			}
-			if (mod == 0b10) {
-				return 2 + data_bytes;
-			}
-			if (mod == 0b11) {
-				return data_bytes;
-			}
-			if (mod == 0b00) {
-				if (rm == 0b110) {
-					return 2 + data_bytes;
-				} else {
-					return data_bytes;
-				}
-			}
-			std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-			std::exit(EXIT_FAILURE);
-		}
-		case Operation::ASC_IMM_TO_REGMEM: {
-			u8 data_bytes = sign_bit ? 0 : 1;
-			data_bytes += wide ? 1 : 0;
-			if (mod == 0b01) {
-				return 1 + data_bytes;
-			}
-			if (mod == 0b10) {
-				return 2 + data_bytes;
-			}
-			if (mod == 0b11) {
-				return data_bytes;
-			}
-			if (mod == 0b00) {
-				if (rm == 0b110) {
-					return 2 + data_bytes;
-				} else {
-					return data_bytes;
-				}
-			}
-			std::cerr << std::format("{}: Unhandled case\n", __LINE__);
-			std::exit(EXIT_FAILURE);
-		}
+      u8 data_bytes = wide ? 2 : 1;
+      if (mod == 0b01) {
+        return 1 + data_bytes;
+      }
+      if (mod == 0b10) {
+        return 2 + data_bytes;
+      }
+      if (mod == 0b11) {
+        return data_bytes;
+      }
+      if (mod == 0b00) {
+        if (rm == 0b110) {
+          return 2 + data_bytes;
+        } else {
+          return data_bytes;
+        }
+      }
+      std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+      std::exit(EXIT_FAILURE);
+    }
+    case Operation::ASC_IMM_TO_REGMEM: {
+      u8 data_bytes = sign_bit ? 0 : 1;
+      data_bytes += wide ? 1 : 0;
+      if (mod == 0b01) {
+        return 1 + data_bytes;
+      }
+      if (mod == 0b10) {
+        return 2 + data_bytes;
+      }
+      if (mod == 0b11) {
+        return data_bytes;
+      }
+      if (mod == 0b00) {
+        if (rm == 0b110) {
+          return 2 + data_bytes;
+        } else {
+          return data_bytes;
+        }
+      }
+      std::cerr << std::format("{}: Unhandled case\n", __LINE__);
+      std::exit(EXIT_FAILURE);
+    }
 
     default:
       std::cerr << std::format("{}: Unhandled case\n", __LINE__);
@@ -464,324 +465,345 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
 std::string disassemble_regmem_to_from_reg(std::string name, std::vector<u8>& instruction) {
   using iterator = std::unordered_map<u8, std::string>::const_iterator;
 
-	u8 high = instruction[0];
-	u8 low = instruction[1];
-	bool wide = high & 0b01;
-	bool direction = (high & 0b10) >> 1;
-	u8 mod = (low & 0b11000000) >> 6;
-	u8 reg = (low & 0b00111000) >> 3;
-	u8 rm = low & 0b00000111;
+  u8 high = instruction[0];
+  u8 low = instruction[1];
+  bool wide = high & 0b01;
+  bool direction = (high & 0b10) >> 1;
+  u8 mod = (low & 0b11000000) >> 6;
+  u8 reg = (low & 0b00111000) >> 3;
+  u8 rm = low & 0b00000111;
 
-	auto register_names = get_register_name_map();
-	auto rm_values = get_rm_map();
+  auto register_names = get_register_name_map();
+  auto rm_values = get_rm_map();
 
   /* Effective address calculation w/ 16-bit displacement */
   if (mod == 0b10) {
-		u8 disp_high = U8(instruction[3]);
+    u8 disp_high = U8(instruction[3]);
     u8 disp_low = U8(instruction[2]);
-		i16 disp = I16((disp_high << 8) + disp_low);
-		u8 key_reg = reg + (wide << 3);
-		iterator reg_it = register_names.find(key_reg);
-		iterator rm_it = rm_values.find(rm);
-		if (direction) {
-			return std::format(
-				"{} {}, [{} {} {}]\n",
-				name, (*reg_it).second, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp));
-		} else {
-			return std::format(
-				"{} [{} {} {}], {}\n",
-				name, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp), (*reg_it).second);
-		}
+    i16 disp = I16((disp_high << 8) + disp_low);
+    u8 key_reg = reg + (wide << 3);
+    iterator reg_it = register_names.find(key_reg);
+    iterator rm_it = rm_values.find(rm);
+    if (direction) {
+      return std::format(
+        "{} {}, [{} {} {}]\n",
+        name, (*reg_it).second, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp));
+    } else {
+      return std::format(
+        "{} [{} {} {}], {}\n",
+        name, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp), (*reg_it).second);
+    }
 
-	} else if (mod == 0b01) {
-		/* Effective address calculation w/ 8-bit displacement */
-		i8 disp = I8(instruction[2]);
-		u8 key_reg = reg + (wide << 3);
-		iterator reg_it = register_names.find(key_reg);
-		iterator rm_it = rm_values.find(rm);
-		if (direction) {
-			return std::format(
-				"{} {}, [{} {} {}]\n",
-				name, (*reg_it).second, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp));
-		} else {
-			return std::format(
-				"{} [{} + {}], {}\n",
-				name, (*rm_it).second, (int)disp, (*reg_it).second);
-		}
-	} else if (mod == 0b00) {
-		if (rm == 0b110) {
-			/* Direct address: 16-bit displacement follows */
-			u8 key_reg = reg + (wide << 3);
-			u8 disp_high = U8(instruction[3]);
-			u8 disp_low = U8(instruction[2]);
-			i16 disp = I16((disp_high << 8) + disp_low);
-			iterator reg_it = register_names.find(key_reg);
-			if (direction) {
-				return std::format("{} {} [{}{}]\n", name, (*reg_it).second, (disp < 0 ? "-" : ""), std::abs(disp));
-			} else {
-				return std::format("{} [{}{}], {}\n", name, (disp < 0 ? "-" : ""), std::abs(disp), (*reg_it).second);
-			}
-		} else {
-			/* No displacement */
-			u8 key_reg  = reg + (wide << 3);
-			iterator reg_it = register_names.find(key_reg);
-			iterator rm_it = rm_values.find(rm);
-			if (reg_it == register_names.end() || rm_it == rm_values.end()) {
-				std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
-				std::exit(EXIT_FAILURE);
-			}
-			if (direction) {
-				return std::format(
-					"{} {}, [{}]\n",
-					name, (*reg_it).second, (*rm_it).second);
-			} else {
-				return std::format(
-					"{} [{}], {}\n",
-					name, (*rm_it).second, (*reg_it).second);
-			}
-		}
-	} else if (mod == 0b11) {
-		/* Register to Register */
-		u8 key_rm = rm + (wide << 3);
-		u8 key_reg  = reg + (wide << 3);
-		iterator source_it {};
-		iterator destination_it {};
-		if (direction) {
-			source_it = register_names.find(key_rm);
-			destination_it = register_names.find(key_reg);
-		} else {
-			destination_it = register_names.find(key_reg);
-			source_it = register_names.find(key_rm);
-		}
-		if (source_it == register_names.end() || destination_it == register_names.end()) {
-			std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
-			std::exit(EXIT_FAILURE);
-		}
-		return std::format(
-			"{} {}, {}\n", name, (*source_it).second, (*destination_it).second
-		);
-	}
-	return std::format("Unknown: regmem_to_from_reg, mod = {}, rm = {}\n", mod, rm);
+  } else if (mod == 0b01) {
+    /* Effective address calculation w/ 8-bit displacement */
+    i8 disp = I8(instruction[2]);
+    u8 key_reg = reg + (wide << 3);
+    iterator reg_it = register_names.find(key_reg);
+    iterator rm_it = rm_values.find(rm);
+    if (direction) {
+      return std::format(
+        "{} {}, [{} {} {}]\n",
+        name, (*reg_it).second, (*rm_it).second, (disp < 0 ? "-" : "+"), std::abs(disp));
+    } else {
+      return std::format(
+        "{} [{} + {}], {}\n",
+        name, (*rm_it).second, (int)disp, (*reg_it).second);
+    }
+  } else if (mod == 0b00) {
+    if (rm == 0b110) {
+      /* Direct address: 16-bit displacement follows */
+      u8 key_reg = reg + (wide << 3);
+      u8 disp_high = U8(instruction[3]);
+      u8 disp_low = U8(instruction[2]);
+      i16 disp = I16((disp_high << 8) + disp_low);
+      iterator reg_it = register_names.find(key_reg);
+      if (direction) {
+        return std::format("{} {} [{}{}]\n", name, (*reg_it).second, (disp < 0 ? "-" : ""), std::abs(disp));
+      } else {
+        return std::format("{} [{}{}], {}\n", name, (disp < 0 ? "-" : ""), std::abs(disp), (*reg_it).second);
+      }
+    } else {
+      /* No displacement */
+      u8 key_reg  = reg + (wide << 3);
+      iterator reg_it = register_names.find(key_reg);
+      iterator rm_it = rm_values.find(rm);
+      if (reg_it == register_names.end() || rm_it == rm_values.end()) {
+        std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
+        std::exit(EXIT_FAILURE);
+      }
+      if (direction) {
+        return std::format(
+          "{} {}, [{}]\n",
+          name, (*reg_it).second, (*rm_it).second);
+      } else {
+        return std::format(
+          "{} [{}], {}\n",
+          name, (*rm_it).second, (*reg_it).second);
+      }
+    }
+  } else if (mod == 0b11) {
+    /* Register to Register */
+    u8 key_rm = rm + (wide << 3);
+    u8 key_reg  = reg + (wide << 3);
+    iterator source_it {};
+    iterator destination_it {};
+    if (direction) {
+      source_it = register_names.find(key_rm);
+      destination_it = register_names.find(key_reg);
+    } else {
+      destination_it = register_names.find(key_reg);
+      source_it = register_names.find(key_rm);
+    }
+    if (source_it == register_names.end() || destination_it == register_names.end()) {
+      std::cerr << std::format("{}: Bad register encoding\n", __LINE__);
+      std::exit(EXIT_FAILURE);
+    }
+    return std::format(
+      "{} {}, {}\n", name, (*source_it).second, (*destination_it).second
+    );
+  }
+  return std::format("Unknown: regmem_to_from_reg, mod = {}, rm = {}\n", mod, rm);
 }
 
 
 std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruction) {
-	bool wide = instruction[0] & 0b01;
-	bool sign_extension = (instruction[0] & 0b10) >> 1;
-	u8 mod = (instruction[1] & 0b11000000) >> 6;
-	u8 rm = instruction[1] & 0b111;
+  bool wide = instruction[0] & 0b01;
+  bool sign_extension = (instruction[0] & 0b10) >> 1;
+  u8 mod = (instruction[1] & 0b11000000) >> 6;
+  u8 rm = instruction[1] & 0b111;
 
-	auto rm_it = get_rm_map().find(rm);
-	std::string length = wide ? "word" : "byte";
+  bool extend = wide and sign_extension;
 
-	if (name == GENERIC_OP) {
-		name = map_generic_to_name(Operation::ASC_IMM_TO_REGMEM, instruction);
-	}
+  auto rm_it = get_rm_map().find(rm);
+  std::string length = wide ? "word" : "byte";
 
-	#if defined DEBUG
-	std::cout << std::format("name: {}, mod: {}, rm: {}, wide: {}, sign extension: {}\n",
-		name, mod, rm, wide, sign_extension);
-	for (auto byte : instruction) {
-		std::cout << std::hex << (int)byte << " ";
-	}
-	std::cout << std::dec << std::endl;
-	#endif
+  if (name == GENERIC_OP) {
+    name = map_generic_to_name(Operation::ASC_IMM_TO_REGMEM, instruction);
+  }
 
-	switch(mod) {
+  #if defined DEBUG
+  std::cout << std::format("name: {}, mod: {}, rm: {}, dest_wide: {}, src_wide: {}\n",
+    name, mod, rm, src_wide, dest_wide);
+  for (auto byte : instruction) {
+    std::cout << std::hex << (int)byte << " ";
+  }
+  std::cout << std::dec << std::endl;
+  #endif
 
-		case 0b00: {
-			i16 data {};
-			if (wide) {
-				data = I16(instruction[3] << 8) + instruction[2];
-			} else {
-				data = I16(instruction[2]);
-			}
-			i16 addr = I16((instruction[3] << 8) + instruction[2]);
-			std::string dest = (rm == 0b110) ? std::format("{}", addr): rm_it->second;
-			if (sign_extension) {
-				return std::format("{} [{}], {} {}\n", name, dest, length, data);
-			} else {
-				return std::format("{} {} [{}], {}\n", name, length, dest, data);
-			}
-		}
+  /*
+   * wide -- word data / byte data
+   * sign -- if operating on word data, extend 8 bit data to 16 bits
+   *
+   *
+   *
+   *
+   *
+   *
+   */
 
-		case 0b01: {
-			i8 disp = I8(instruction[2]);
-			i16 data {};
-			if (wide) {
-				data = I16(instruction[4] << 8) + instruction[3];
-			} else {
-				data = I16(instruction[3]);
-			}
-			if (sign_extension) {
-				return std::format("{} [{} {} {}], {} {}\n",
-					name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
-			} else {
-				return std::format("{} {} [{} {} {}], {}\n",
-					name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
-			}
-		}
+  switch(mod) {
 
-		case 0b10: {
-			i16 disp = I16((instruction[3] << 8) + instruction[2]);
-			i16 data {};
-			if (wide) {
-				data = I16(instruction[5] << 8) + instruction[4];
-			} else {
-				data = I16(instruction[4]);
-			}
-			if (sign_extension) {
-				return std::format("{} [{} {} {}], {} {}\n",
-					name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
-			} else {
-				return std::format("{} {} [{} {} {}], {}\n",
-					name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
-			}
-		}
+    case 0b00: {
+      i16 data {};
+      if (wide) {
+        /* 16-bit extension */
+        data = I16(instruction[3] << 8) + instruction[2];
+      } else {
+        /* 8-bit extension*/
+        data = I16(instruction[2]);
+      }
+      i16 addr = I16((instruction[3] << 8) + instruction[2]);
+      std::string dest = (rm == 0b110) ? std::format("{}", addr): rm_it->second;
+      if (sign_extension) {
+        return std::format("{} [{}], {} {}\n", name, dest, length, data);
+      } else {
+        return std::format("{} {} [{}], {}\n", name, length, dest, data);
+      }
+    }
 
-		case 0b11: {
-			/* No displacement */
-			u8 key_rm = rm + (wide << 3);
-			auto dest = get_register_name_map().find(key_rm);
-			if (dest == get_register_name_map().end()) {
-				std::cerr << std::format("{}: Register encoding not found\n", __LINE__);
-				std::exit(EXIT_FAILURE);
-			}
-			i16 data {};
-			if (!sign_extension) {
-				data = I16(instruction[3] << 8) + instruction[2];
-			} else {
-				data = I16(instruction[2]);
-			}
-			std::string op_name = map_generic_to_name(Operation::ASC_IMM_TO_REGMEM , instruction);
-			return std::format("{} {}, {}\n", op_name, dest->second, data);
-		}
+    case 0b01: {
+      i8 disp = I8(instruction[2]);
+      i16 data {};
+      if (wide) {
+        /* 16-bit extension */
+        data = I16(instruction[4] << 8) + instruction[3];
+      } else {
+        data = I16(instruction[3]);
+      }
+      if (sign_extension) {
+        return std::format("{} [{} {} {}], {} {}\n",
+          name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
+      } else {
+        /* 8-bit extension */
+        return std::format("{} {} [{} {} {}], {}\n",
+          name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
+      }
+    }
 
-	};
-	return std::format("{}: Unknown imm to regmem\n", __LINE__);
+    case 0b10: {
+      i16 disp = I16((instruction[3] << 8) + instruction[2]);
+      i16 data {};
+      if (wide) {
+        /* 16-bit extension */
+        data = I16(instruction[5] << 8) + instruction[4];
+      } else {
+        /* 8-bit extension */
+        data = I16(instruction[4]);
+      }
+      if (sign_extension) {
+        return std::format("{} [{} {} {}], {} {}\n",
+          name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
+      } else {
+        return std::format("{} {} [{} {} {}], {}\n",
+          name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
+      }
+    }
+
+    case 0b11: {
+      /* No displacement */
+      u8 key_rm = rm + (wide << 3);
+      auto dest = get_register_name_map().find(key_rm);
+      if (dest == get_register_name_map().end()) {
+        std::cerr << std::format("{}: Register encoding not found\n", __LINE__);
+        std::exit(EXIT_FAILURE);
+      }
+      i16 data {};
+      if (!sign_extension) {
+        /* 16-bit extension */
+        data = I16(instruction[3] << 8) + instruction[2];
+      } else {
+        /* 8-bit extension */
+        data = I16(instruction[2]);
+      }
+      std::string op_name = map_generic_to_name(Operation::ASC_IMM_TO_REGMEM , instruction);
+      return std::format("{} {}, {}\n", op_name, dest->second, data);
+    }
+
+  };
+  return std::format("{}: Unknown imm to regmem\n", __LINE__);
 }
 
 
 std::string disassemble_imm_to_reg(std::string name, std::vector<u8>& instruction) {
   using iterator = std::unordered_map<u8, std::string>::const_iterator;
-	bool wide = (instruction[0] & 0b1000) >> 3;
-	u8 reg = instruction[0] & 0b111;
-	u8 key_reg = reg + (wide << 3);
-	auto register_names = get_register_name_map();
-	iterator reg_it = register_names.find(key_reg);
-	if (reg_it == register_names.end()) {
-		std::cerr << std::format("{}: Bad register encoding: {}\n", __LINE__, (int)key_reg);
-		std::exit(EXIT_FAILURE);
-	}
-	if (wide) {
-		i16 data = I16(instruction[1] + (instruction[2] << 8));
-		return std::format("{} {}, {}\n", name, reg_it->second, data);
-	} else {
-		i8 data = I8(instruction[1]);
-		return std::format("{}, {}, {}\n", name, reg_it->second, data);
-	}
+  bool wide = (instruction[0] & 0b1000) >> 3;
+  u8 reg = instruction[0] & 0b111;
+  u8 key_reg = reg + (wide << 3);
+  auto register_names = get_register_name_map();
+  iterator reg_it = register_names.find(key_reg);
+  if (reg_it == register_names.end()) {
+    std::cerr << std::format("{}: Bad register encoding: {}\n", __LINE__, (int)key_reg);
+    std::exit(EXIT_FAILURE);
+  }
+  if (wide) {
+    i16 data = I16(instruction[1] + (instruction[2] << 8));
+    return std::format("{} {}, {}\n", name, reg_it->second, data);
+  } else {
+    i8 data = I8(instruction[1]);
+    return std::format("{}, {}, {}\n", name, reg_it->second, data);
+  }
 }
 
 
 std::string disassemble_mem_to_acc(std::string name, std::vector<u8>& instruction) {
-	bool wide = instruction[0] & 0b01;
-	if (wide) {
-		u16 addr = U16((instruction[2] << 8) + instruction[1]);
-		return std::format("{} ax, [{}]\n", name, addr);
-	} else {
-		u8 addr = U8(instruction[1]);
-		return std::format("{} al, [{}]\n", name, addr);
-	}
+  bool wide = instruction[0] & 0b01;
+  if (wide) {
+    u16 addr = U16((instruction[2] << 8) + instruction[1]);
+    return std::format("{} ax, [{}]\n", name, addr);
+  } else {
+    u8 addr = U8(instruction[1]);
+    return std::format("{} al, [{}]\n", name, addr);
+  }
 }
 
 
 std::string disassemble_acc_to_mem(std::string name, std::vector<u8>& instruction) {
-	bool wide = instruction[0] & 0b01;
-	if (wide) {
-		u16 addr = U16((instruction[2] << 8) + instruction[1]);
-		return std::format("{} [{}], ax\n", name, addr);
-	} else {
-		u8 addr = U8(instruction[1]);
-		return std::format("{} [{}], al\n", name, addr);
-	}
+  bool wide = instruction[0] & 0b01;
+  if (wide) {
+    u16 addr = U16((instruction[2] << 8) + instruction[1]);
+    return std::format("{} [{}], ax\n", name, addr);
+  } else {
+    u8 addr = U8(instruction[1]);
+    return std::format("{} [{}], al\n", name, addr);
+  }
 }
 
 
 std::string disassemble_add_to_acc(std::string name, std::vector<u8>& instruction) {
   bool wide = instruction[0] & 0b01;
-	i16 data {};
-	std::string dest {};
-	if (wide) {
-		data = I16((instruction[2] << 8) + instruction[1]);
-		dest = "ax";
-	} else {
-		data = I8(instruction[1]);
-		dest = "al";
-	}
-	#if defined DEBUG
-	std::cout << std::format("name: {}, wide: {}, dest: {}, data: {}\n",
-		name, wide, dest, data);
-	for (auto byte : instruction) {
-		std::cout << std::hex << (int)byte << " ";
-	}
-	std::cout << std::dec << std::endl;
-	#endif
-	return std::format("{} {}, {}\n", name, dest, data);
+  i16 data {};
+  std::string dest {};
+  if (wide) {
+    data = I16((instruction[2] << 8) + instruction[1]);
+    dest = "ax";
+  } else {
+    data = I8(instruction[1]);
+    dest = "al";
+  }
+  #if defined DEBUG
+  std::cout << std::format("name: {}, wide: {}, dest: {}, data: {}\n",
+    name, wide, dest, data);
+  for (auto byte : instruction) {
+    std::cout << std::hex << (int)byte << " ";
+  }
+  std::cout << std::dec << std::endl;
+  #endif
+  return std::format("{} {}, {}\n", name, dest, data);
 }
 
 
 std::string disassemble_jmp(std::string name, std::vector<u8>& instruction) {
-	return std::format("{} {}\n", name, I8(instruction[1]));
+  return std::format("{} {}\n", name, I8(instruction[1]));
 }
 
 
 std::string disassemble(std::string name, Operation op, std::vector<u8> &instruction) {
 
   switch (op) {
-		case Operation::JMP_EQUAL:
-		case Operation::JMP_LESS:
-		case Operation::JMP_LESS_OR_EQUAL:
-		case Operation::JMP_BELOW:
-		case Operation::JMP_BELOW_OR_EQUAL:
-		case Operation::JMP_PARITY:
-		case Operation::JMP_OVERFLOW:
-		case Operation::JMP_SIGN:
-		case Operation::JMP_NOT_EQUAL:
-		case Operation::JMP_NOT_LESS:
-		case Operation::JMP_NOT_LESS_OR_EQUAL:
-		case Operation::JMP_NOT_BELOW:
-		case Operation::JMP_NOT_BELOW_OR_EQUAL:
-		case Operation::JMP_NOT_PARITY:
-		case Operation::JMP_NOT_OVERFLOW:
-		case Operation::JMP_NOT_SIGN:
-		case Operation::LOOP:
-		case Operation::LOOPZ:
-		case Operation::LOOPNZ:
-		case Operation::JMP_CX_ZERO:
-			return disassemble_jmp(name, instruction);
-		case Operation::CMP_REGMEM_AND_REG:
-		case Operation::SUB_REGMEM_WITH_REG:
-		case Operation::ADD_REGMEM_WITH_REG:
+    case Operation::JMP_EQUAL:
+    case Operation::JMP_LESS:
+    case Operation::JMP_LESS_OR_EQUAL:
+    case Operation::JMP_BELOW:
+    case Operation::JMP_BELOW_OR_EQUAL:
+    case Operation::JMP_PARITY:
+    case Operation::JMP_OVERFLOW:
+    case Operation::JMP_SIGN:
+    case Operation::JMP_NOT_EQUAL:
+    case Operation::JMP_NOT_LESS:
+    case Operation::JMP_NOT_LESS_OR_EQUAL:
+    case Operation::JMP_NOT_BELOW:
+    case Operation::JMP_NOT_BELOW_OR_EQUAL:
+    case Operation::JMP_NOT_PARITY:
+    case Operation::JMP_NOT_OVERFLOW:
+    case Operation::JMP_NOT_SIGN:
+    case Operation::LOOP:
+    case Operation::LOOPZ:
+    case Operation::LOOPNZ:
+    case Operation::JMP_CX_ZERO:
+      return disassemble_jmp(name, instruction);
+    case Operation::CMP_REGMEM_AND_REG:
+    case Operation::SUB_REGMEM_WITH_REG:
+    case Operation::ADD_REGMEM_WITH_REG:
     case Operation::REGMEM_TO_FROM_REG:
-			return disassemble_regmem_to_from_reg(name, instruction);
-		case Operation::ASC_IMM_TO_REGMEM:
+      return disassemble_regmem_to_from_reg(name, instruction);
+    case Operation::ASC_IMM_TO_REGMEM:
     case Operation::IMM_TO_REGMEM:
-			return disassemble_imm_to_regmem(name, instruction);
+      return disassemble_imm_to_regmem(name, instruction);
     case Operation::IMM_TO_REG:
-			return disassemble_imm_to_reg(name, instruction);
+      return disassemble_imm_to_reg(name, instruction);
     case Operation::MEM_TO_ACC:
-			return disassemble_mem_to_acc(name, instruction);
+      return disassemble_mem_to_acc(name, instruction);
     case Operation::ACC_TO_MEM:
-			return disassemble_acc_to_mem(name, instruction);
-		case Operation::CMP_IMM_WITH_ACC:
-		case Operation::SUB_IMM_FROM_ACC:
-		case Operation::ADD_IMM_TO_ACC:
-			return disassemble_add_to_acc(name, instruction);
+      return disassemble_acc_to_mem(name, instruction);
+    case Operation::CMP_IMM_WITH_ACC:
+    case Operation::SUB_IMM_FROM_ACC:
+    case Operation::ADD_IMM_TO_ACC:
+      return disassemble_add_to_acc(name, instruction);
     default:
       std::cerr << std::format("{}: Unhandled case\n", __LINE__);
       std::exit(EXIT_FAILURE);
   }
-	return "unk\n";
+  return "unk\n";
 }
 
 
@@ -796,8 +818,8 @@ int main(int argc, char **argv) {
   char* program_filename = argv[1];
   if (!std::filesystem::exists(program_filename)) {
     std::cerr << std::format(
-		"{}: Could not find program file: {}\n", __LINE__, program_filename
-	);
+    "{}: Could not find program file: {}\n", __LINE__, program_filename
+  );
     return EXIT_FAILURE;
   }
 
