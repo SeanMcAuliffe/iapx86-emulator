@@ -433,8 +433,13 @@ u8 additional_bytes(Operation op, std::vector<u8> &instruction) {
       std::exit(EXIT_FAILURE);
     }
     case Operation::ASC_IMM_TO_REGMEM: {
-      u8 data_bytes = sign_bit ? 0 : 1;
-      data_bytes += wide ? 1 : 0;
+      u8 data_bytes = wide ? 2 : 1;
+			/* Wide and sign extension bit being 1 means that despite this being a
+			 * wide instruction, the immediate operand is actually only 1-byte, and
+			 * should be sign-extended to 2-bytes. */
+			if (wide && sign_bit) {
+				data_bytes = 1;
+			}
       if (mod == 0b01) {
         return 1 + data_bytes;
       }
@@ -518,7 +523,7 @@ std::string disassemble_regmem_to_from_reg(std::string name, std::vector<u8>& in
       i16 disp = I16((disp_high << 8) + disp_low);
       iterator reg_it = register_names.find(key_reg);
       if (direction) {
-        return std::format("{} {} [{}{}]\n", name, (*reg_it).second, (disp < 0 ? "-" : ""), std::abs(disp));
+        return std::format("{} {}, [{}{}]\n", name, (*reg_it).second, (disp < 0 ? "-" : ""), std::abs(disp));
       } else {
         return std::format("{} [{}{}], {}\n", name, (disp < 0 ? "-" : ""), std::abs(disp), (*reg_it).second);
       }
@@ -568,11 +573,8 @@ std::string disassemble_regmem_to_from_reg(std::string name, std::vector<u8>& in
 
 std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruction) {
   bool wide = instruction[0] & 0b01;
-  bool sign_extension = (instruction[0] & 0b10) >> 1;
   u8 mod = (instruction[1] & 0b11000000) >> 6;
   u8 rm = instruction[1] & 0b111;
-
-  bool extend = wide and sign_extension;
 
   auto rm_it = get_rm_map().find(rm);
   std::string length = wide ? "word" : "byte";
@@ -580,26 +582,6 @@ std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruc
   if (name == GENERIC_OP) {
     name = map_generic_to_name(Operation::ASC_IMM_TO_REGMEM, instruction);
   }
-
-  #if defined DEBUG
-  std::cout << std::format("name: {}, mod: {}, rm: {}, dest_wide: {}, src_wide: {}\n",
-    name, mod, rm, src_wide, dest_wide);
-  for (auto byte : instruction) {
-    std::cout << std::hex << (int)byte << " ";
-  }
-  std::cout << std::dec << std::endl;
-  #endif
-
-  /*
-   * wide -- word data / byte data
-   * sign -- if operating on word data, extend 8 bit data to 16 bits
-   *
-   *
-   *
-   *
-   *
-   *
-   */
 
   switch(mod) {
 
@@ -614,11 +596,7 @@ std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruc
       }
       i16 addr = I16((instruction[3] << 8) + instruction[2]);
       std::string dest = (rm == 0b110) ? std::format("{}", addr): rm_it->second;
-      if (sign_extension) {
-        return std::format("{} [{}], {} {}\n", name, dest, length, data);
-      } else {
-        return std::format("{} {} [{}], {}\n", name, length, dest, data);
-      }
+			return std::format("{} {} [{}], {}\n", name, length, dest, data);
     }
 
     case 0b01: {
@@ -630,14 +608,8 @@ std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruc
       } else {
         data = I16(instruction[3]);
       }
-      if (sign_extension) {
-        return std::format("{} [{} {} {}], {} {}\n",
-          name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
-      } else {
-        /* 8-bit extension */
-        return std::format("{} {} [{} {} {}], {}\n",
-          name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
-      }
+			return std::format("{} {} [{} {} {}], {}\n",
+				name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
     }
 
     case 0b10: {
@@ -650,13 +622,8 @@ std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruc
         /* 8-bit extension */
         data = I16(instruction[4]);
       }
-      if (sign_extension) {
-        return std::format("{} [{} {} {}], {} {}\n",
-          name, rm_it->second, (disp < 0 ? "-" : "+"), disp, length, data);
-      } else {
-        return std::format("{} {} [{} {} {}], {}\n",
-          name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
-      }
+    	return std::format("{} {} [{} {} {}], {}\n",
+				name, length, rm_it->second, (disp < 0 ? "-" : "+"), disp, data);
     }
 
     case 0b11: {
@@ -668,9 +635,10 @@ std::string disassemble_imm_to_regmem(std::string name, std::vector<u8>& instruc
         std::exit(EXIT_FAILURE);
       }
       i16 data {};
-      if (!sign_extension) {
+      if (wide) {
         /* 16-bit extension */
-        data = I16(instruction[3] << 8) + instruction[2];
+				data = I16(instruction[3] << 8) + instruction[2];
+        data = I16(instruction[2]);
       } else {
         /* 8-bit extension */
         data = I16(instruction[2]);
@@ -700,7 +668,7 @@ std::string disassemble_imm_to_reg(std::string name, std::vector<u8>& instructio
     return std::format("{} {}, {}\n", name, reg_it->second, data);
   } else {
     i8 data = I8(instruction[1]);
-    return std::format("{}, {}, {}\n", name, reg_it->second, data);
+    return std::format("{} {}, {}\n", name, reg_it->second, data);
   }
 }
 
@@ -740,14 +708,6 @@ std::string disassemble_add_to_acc(std::string name, std::vector<u8>& instructio
     data = I8(instruction[1]);
     dest = "al";
   }
-  #if defined DEBUG
-  std::cout << std::format("name: {}, wide: {}, dest: {}, data: {}\n",
-    name, wide, dest, data);
-  for (auto byte : instruction) {
-    std::cout << std::hex << (int)byte << " ";
-  }
-  std::cout << std::dec << std::endl;
-  #endif
   return std::format("{} {}, {}\n", name, dest, data);
 }
 
